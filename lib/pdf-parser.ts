@@ -120,13 +120,70 @@ function parseLine(line: string): Partial<Klus> | null {
   }
 }
 
+type PdfTextItem = { str: string; transform: number[]; width: number }
+
+function reconstructText(items: PdfTextItem[]): string {
+  if (items.length === 0) return ''
+
+  const LINE_GAP = 4   // min Y difference to consider a new line
+  const TAB_GAP = 30   // min X gap (points) to insert a tab
+
+  // Sort top-to-bottom (Y descending in PDF coords), then left-to-right
+  const sorted = [...items].sort((a, b) => {
+    const yDiff = b.transform[5] - a.transform[5]
+    if (Math.abs(yDiff) > LINE_GAP) return yDiff
+    return a.transform[4] - b.transform[4]
+  })
+
+  let text = ''
+  let lastY = sorted[0].transform[5]
+  let lastX = 0
+  let lastWidth = 0
+
+  for (const item of sorted) {
+    const x = item.transform[4]
+    const y = item.transform[5]
+
+    if (Math.abs(y - lastY) > LINE_GAP) {
+      text += '\n'
+      lastX = 0
+      lastWidth = 0
+    } else if (text && x > lastX + lastWidth + TAB_GAP) {
+      text += '\t'
+    }
+
+    text += item.str
+    lastY = y
+    lastX = x
+    lastWidth = item.width || item.str.length * 6
+  }
+
+  return text
+}
+
 export async function parsePDF(buffer: Buffer): Promise<Partial<Klus>[]> {
-  const { PDFParse } = await import('pdf-parse')
-  const parser = new PDFParse({ data: buffer })
-  const result = await parser.getText()
+  // Use pdfjs-dist directly with worker disabled — works in Vercel serverless
+  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  pdfjsLib.GlobalWorkerOptions.workerSrc = ''
+
+  const loadingTask = pdfjsLib.getDocument({
+    data: new Uint8Array(buffer),
+    useWorkerFetch: false,
+    isEvalSupported: false,
+    useSystemFonts: true,
+  })
+
+  const doc = await loadingTask.promise
+  let fullText = ''
+
+  for (let i = 1; i <= doc.numPages; i++) {
+    const page = await doc.getPage(i)
+    const content = await page.getTextContent()
+    fullText += reconstructText(content.items as PdfTextItem[]) + '\n'
+  }
 
   const klussen: Partial<Klus>[] = []
-  for (const line of result.text.split('\n')) {
+  for (const line of fullText.split('\n')) {
     const klus = parseLine(line)
     if (klus && klus.duur && klus.duur > 0) {
       if (!klussen.find(k => k.id === klus.id)) {
