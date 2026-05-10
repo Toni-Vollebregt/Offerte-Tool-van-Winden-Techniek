@@ -1,8 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  turbopack: {},
-  // Run pdf-parse and pdfjs-dist as native Node modules (not bundled by Turbopack)
+  // pdf-parse and pdfjs-dist must not be bundled — they need native Node.js runtime
   serverExternalPackages: ['pdf-parse', 'pdfjs-dist'],
   // Allow SVG in public folder
   images: {
