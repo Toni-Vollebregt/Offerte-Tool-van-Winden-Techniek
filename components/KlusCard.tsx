@@ -176,7 +176,7 @@ export default function KlusCard({ klus, onChange, index }: KlusCardProps) {
 
           {/* Berekening samenvatting */}
           <div
-            className="rounded-lg p-3 grid grid-cols-2 gap-2 text-sm md:grid-cols-3"
+            className="rounded-lg p-3 grid grid-cols-2 gap-2 text-sm md:grid-cols-4"
             style={{ backgroundColor: '#2D2D2D' }}
           >
             <div>
@@ -185,9 +185,13 @@ export default function KlusCard({ klus, onChange, index }: KlusCardProps) {
               <p style={{ color: '#6D6D6D' }} className="text-xs">{formatNumber(localKlus.duur)} u &times; {formatCurrency(localKlus.uurtarief)}</p>
             </div>
             <div>
-              <p style={labelStyle} className="text-xs">Reiskosten (km)</p>
+              <p style={labelStyle} className="text-xs">Kilometervergoeding</p>
               <p className="text-white font-medium">{formatCurrency(localKlus.reiskostenKm)}</p>
               <p style={{ color: '#6D6D6D' }} className="text-xs">{formatNumber(localKlus.afstandKm)} km &times; €0,50</p>
+            </div>
+            <div>
+              <p style={labelStyle} className="text-xs">Reiskosten</p>
+              <p className="text-white font-medium">{formatCurrency(localKlus.reiskostenUur)}</p>
             </div>
             <div>
               <p style={labelStyle} className="text-xs">Totaal</p>
