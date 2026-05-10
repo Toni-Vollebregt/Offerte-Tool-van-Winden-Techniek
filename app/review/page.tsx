@@ -104,12 +104,12 @@ export default function ReviewPage() {
               <p className="text-white font-semibold text-lg">{formatCurrency(totalen.subtotaalReisKm)}</p>
             </div>
             <div>
-              <p style={{ color: '#9D9D9D' }} className="text-xs">Reiskosten uur</p>
-              <p className="text-white font-semibold text-lg">{formatCurrency(totalen.subtotaalReisUur)}</p>
+              <p style={{ color: '#9D9D9D' }} className="text-xs">Totaal excl. BTW</p>
+              <p className="text-white font-semibold text-lg">{formatCurrency(totalen.totaal)}</p>
             </div>
             <div>
-              <p style={{ color: '#9D9D9D' }} className="text-xs">Totaal (excl. BTW)</p>
-              <p className="font-bold text-xl" style={{ color: '#00E8FF' }}>{formatCurrency(totalen.totaal)}</p>
+              <p style={{ color: '#9D9D9D' }} className="text-xs">Totaal incl. BTW</p>
+              <p className="font-bold text-xl" style={{ color: '#00E8FF' }}>{formatCurrency(totalen.totaalInclBTW)}</p>
             </div>
           </div>
 
@@ -136,9 +136,12 @@ export default function ReviewPage() {
             <div>
               <p style={{ color: '#9D9D9D' }} className="text-sm">Maandtotaal</p>
               <p className="text-3xl font-bold" style={{ color: '#00E8FF' }}>
-                {formatCurrency(totalen.totaal)}
+                {formatCurrency(totalen.totaalInclBTW)}
               </p>
               <p style={{ color: '#6D6D6D' }} className="text-xs mt-1">
+                excl. BTW {formatCurrency(totalen.totaal)} &bull; BTW {formatCurrency(totalen.btw)}
+              </p>
+              <p style={{ color: '#6D6D6D' }} className="text-xs">
                 {klussen.length} werkbonnen &bull; {formatNumber(klussen.reduce((s, k) => s + k.duur, 0), 2)} totaal uren
               </p>
             </div>

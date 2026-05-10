@@ -33,7 +33,7 @@ export default function KlusCard({ klus, onChange, index }: KlusCardProps) {
     }
 
     if (field === 'reisUren') {
-      updated.reiskostenUur = Math.round(Number(value) * 2 * 55 * 100) / 100
+      updated.reiskostenUur = Math.round(Number(value) * 2 * 55 * 1.15 * 100) / 100
     }
 
     updated.totaal = Math.round(
@@ -176,7 +176,7 @@ export default function KlusCard({ klus, onChange, index }: KlusCardProps) {
 
           {/* Berekening samenvatting */}
           <div
-            className="rounded-lg p-3 grid grid-cols-2 gap-2 text-sm md:grid-cols-4"
+            className="rounded-lg p-3 grid grid-cols-2 gap-2 text-sm md:grid-cols-3"
             style={{ backgroundColor: '#2D2D2D' }}
           >
             <div>
@@ -188,11 +188,6 @@ export default function KlusCard({ klus, onChange, index }: KlusCardProps) {
               <p style={labelStyle} className="text-xs">Reiskosten (km)</p>
               <p className="text-white font-medium">{formatCurrency(localKlus.reiskostenKm)}</p>
               <p style={{ color: '#6D6D6D' }} className="text-xs">{formatNumber(localKlus.afstandKm)} km &times; €0,50</p>
-            </div>
-            <div>
-              <p style={labelStyle} className="text-xs">Reiskosten (uur)</p>
-              <p className="text-white font-medium">{formatCurrency(localKlus.reiskostenUur)}</p>
-              <p style={{ color: '#6D6D6D' }} className="text-xs">{formatNumber(localKlus.reisUren * 2)} u &times; €55,00</p>
             </div>
             <div>
               <p style={labelStyle} className="text-xs">Totaal</p>

@@ -134,12 +134,13 @@ export default function FinalizePage() {
               <p className="text-white font-semibold">{formatCurrency(offerte.subtotaalReisKm)}</p>
             </div>
             <div>
-              <p style={{ color: '#9D9D9D' }} className="text-xs">Reiskosten uur</p>
-              <p className="text-white font-semibold">{formatCurrency(offerte.subtotaalReisUur)}</p>
+              <p style={{ color: '#9D9D9D' }} className="text-xs">Totaal excl. BTW</p>
+              <p className="text-white font-semibold">{formatCurrency(offerte.totaal)}</p>
+              <p style={{ color: '#6D6D6D' }} className="text-xs">BTW: {formatCurrency(offerte.btw)}</p>
             </div>
             <div>
-              <p style={{ color: '#9D9D9D' }} className="text-xs">Totaal (excl. BTW)</p>
-              <p className="font-bold text-xl" style={{ color: '#00E8FF' }}>{formatCurrency(offerte.totaal)}</p>
+              <p style={{ color: '#9D9D9D' }} className="text-xs">Totaal incl. BTW</p>
+              <p className="font-bold text-xl" style={{ color: '#00E8FF' }}>{formatCurrency(offerte.totaalInclBTW)}</p>
             </div>
           </div>
 

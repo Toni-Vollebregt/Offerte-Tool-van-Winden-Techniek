@@ -27,6 +27,8 @@ export interface Offerte {
   subtotaalReisKm: number
   subtotaalReisUur: number
   totaal: number
+  btw: number
+  totaalInclBTW: number
   aangemaakt?: string
 }
 

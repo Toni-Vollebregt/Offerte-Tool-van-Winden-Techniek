@@ -158,19 +158,18 @@ const styles = StyleSheet.create({
   // Column widths
   colNr: { width: '4%' },
   colDatum: { width: '9%' },
-  colProject: { width: '28%' },
+  colProject: { width: '34%' },
   colDuur: { width: '7%', textAlign: 'right' },
   colTarief: { width: '9%', textAlign: 'right' },
   colArbeid: { width: '11%', textAlign: 'right' },
   colKm: { width: '9%', textAlign: 'right' },
   colReisKm: { width: '10%', textAlign: 'right' },
-  colReisUur: { width: '10%', textAlign: 'right' },
-  colTotaal: { width: '13%', textAlign: 'right' },
+  colTotaal: { width: '17%', textAlign: 'right' },
   // Subtotals
   subtotaalSection: {
     marginTop: 8,
     marginLeft: 'auto',
-    width: '45%',
+    width: '50%',
   },
   subtotaalRow: {
     flexDirection: 'row',
@@ -348,7 +347,6 @@ export default function OfferteDocument({ offerte, logoUrl }: OfferteDocumentPro
             <Text style={[styles.tableHeaderCell, styles.colArbeid, { textAlign: 'right' }]}>Arbeid</Text>
             <Text style={[styles.tableHeaderCell, styles.colKm, { textAlign: 'right' }]}>KM (v/v)</Text>
             <Text style={[styles.tableHeaderCell, styles.colReisKm, { textAlign: 'right' }]}>Reis km</Text>
-            <Text style={[styles.tableHeaderCell, styles.colReisUur, { textAlign: 'right' }]}>Reis uur</Text>
             <Text style={[styles.tableHeaderCell, styles.colTotaal, { textAlign: 'right' }]}>Totaal</Text>
           </View>
 
@@ -390,9 +388,6 @@ export default function OfferteDocument({ offerte, logoUrl }: OfferteDocumentPro
               <Text style={[styles.tableCell, styles.colReisKm, styles.tableCellRight]}>
                 {formatEuro(klus.reiskostenKm)}
               </Text>
-              <Text style={[styles.tableCell, styles.colReisUur, styles.tableCellRight]}>
-                {formatEuro(klus.reiskostenUur)}
-              </Text>
               <Text style={[styles.tableCell, styles.colTotaal, styles.tableCellRight, { fontFamily: 'Helvetica-Bold' }]}>
                 {formatEuro(klus.totaal)}
               </Text>
@@ -410,13 +405,17 @@ export default function OfferteDocument({ offerte, logoUrl }: OfferteDocumentPro
             <Text style={styles.subtotaalLabel}>Subtotaal reiskosten (km)</Text>
             <Text style={styles.subtotaalValue}>{formatEuro(offerte.subtotaalReisKm)}</Text>
           </View>
+          <View style={[styles.subtotaalRow, { borderBottomWidth: 1, borderBottomColor: '#CCCCCC' }]}>
+            <Text style={styles.subtotaalLabel}>Totaal excl. BTW</Text>
+            <Text style={styles.subtotaalValue}>{formatEuro(offerte.totaal)}</Text>
+          </View>
           <View style={styles.subtotaalRow}>
-            <Text style={styles.subtotaalLabel}>Subtotaal reiskosten (uur)</Text>
-            <Text style={styles.subtotaalValue}>{formatEuro(offerte.subtotaalReisUur)}</Text>
+            <Text style={styles.subtotaalLabel}>BTW 21%</Text>
+            <Text style={styles.subtotaalValue}>{formatEuro(offerte.btw)}</Text>
           </View>
           <View style={styles.totaalRow}>
-            <Text style={styles.totaalLabel}>TOTAAL (excl. BTW)</Text>
-            <Text style={styles.totaalValue}>{formatEuro(offerte.totaal)}</Text>
+            <Text style={styles.totaalLabel}>TOTAAL incl. BTW</Text>
+            <Text style={styles.totaalValue}>{formatEuro(offerte.totaalInclBTW)}</Text>
           </View>
         </View>
 
@@ -426,8 +425,7 @@ export default function OfferteDocument({ offerte, logoUrl }: OfferteDocumentPro
           <Text style={styles.notesText}>
             - Reiskosten berekend vanuit Naaldwijk, Zuid-Holland (retour){'\n'}
             - Reiskosten km: €0,50 per km{'\n'}
-            - Reiskosten uur: €55,00 per uur (retour){'\n'}
-            - Alle bedragen exclusief 21% BTW{'\n'}
+            - BTW: 21%{'\n'}
             - Betalingstermijn: 30 dagen na factuurdatum
           </Text>
         </View>

@@ -2,6 +2,7 @@ import type { Klus } from '@/types'
 
 const KM_TARIEF = 0.50
 const REIS_UUR_TARIEF = 55
+const FILEMARGE = 1.15
 
 export function berekenKlus(
   klus: Partial<Klus>,
@@ -12,8 +13,7 @@ export function berekenKlus(
   const duur = klus.duur ?? 0
   const arbeidskosten = Math.round(duur * uurtarief * 100) / 100
   const reiskostenKm = Math.round(afstandKm * KM_TARIEF * 100) / 100
-  // Round trip for travel hours as well
-  const reiskostenUur = Math.round(reisUren * 2 * REIS_UUR_TARIEF * 100) / 100
+  const reiskostenUur = Math.round(reisUren * 2 * REIS_UUR_TARIEF * FILEMARGE * 100) / 100
   const totaal = Math.round((arbeidskosten + reiskostenKm + reiskostenUur) * 100) / 100
 
   return {
@@ -42,8 +42,10 @@ export function berekenOfferteTotalen(klussen: Klus[]) {
   const subtotaalReisKm = Math.round(klussen.reduce((sum, k) => sum + k.reiskostenKm, 0) * 100) / 100
   const subtotaalReisUur = Math.round(klussen.reduce((sum, k) => sum + k.reiskostenUur, 0) * 100) / 100
   const totaal = Math.round((subtotaalArbeid + subtotaalReisKm + subtotaalReisUur) * 100) / 100
+  const btw = Math.round(totaal * 0.21 * 100) / 100
+  const totaalInclBTW = Math.round(totaal * 1.21 * 100) / 100
 
-  return { subtotaalArbeid, subtotaalReisKm, subtotaalReisUur, totaal }
+  return { subtotaalArbeid, subtotaalReisKm, subtotaalReisUur, totaal, btw, totaalInclBTW }
 }
 
 export function formatCurrency(amount: number): string {

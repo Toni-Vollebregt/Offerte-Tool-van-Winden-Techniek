@@ -117,7 +117,7 @@ export default function HomePage() {
         }
       }
 
-      const { subtotaalArbeid, subtotaalReisKm, subtotaalReisUur, totaal } =
+      const { subtotaalArbeid, subtotaalReisKm, subtotaalReisUur, totaal, btw, totaalInclBTW } =
         berekenOfferteTotalen(klussen)
 
       const offerte: Offerte = {
@@ -128,6 +128,8 @@ export default function HomePage() {
         subtotaalReisKm,
         subtotaalReisUur,
         totaal,
+        btw,
+        totaalInclBTW,
         aangemaakt: new Date().toISOString(),
       }
 
