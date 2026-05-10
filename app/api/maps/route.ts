@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAfstandEnTijd } from '@/lib/maps'
 
+export const runtime = 'nodejs'
+
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
   const locatie = searchParams.get('locatie')
