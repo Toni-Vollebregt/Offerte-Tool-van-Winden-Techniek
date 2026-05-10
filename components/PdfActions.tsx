@@ -49,7 +49,7 @@ export default function PdfActions({ offerte, fileName }: PdfActionsProps) {
   }
 
   const logoUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/vanwinden_techniek_logo_donker.png`
+    ? `${window.location.origin}/vanwinden_techniek_logo_transparant.png`
     : undefined
   const doc = <OfferteDocument offerte={offerte} logoUrl={logoUrl} />
 

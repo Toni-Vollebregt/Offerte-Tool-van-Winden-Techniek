@@ -10,9 +10,23 @@ import {
 } from '@react-pdf/renderer'
 import type { Offerte } from '@/types'
 
+// ─────────────────────────────────────────────────────────────
+// Bedrijfsgegevens — vul hier de definitieve gegevens in
+// ─────────────────────────────────────────────────────────────
+const BEDRIJF = {
+  naam:    'Van Winden Techniek',
+  straat:  'Straatnaam 00',           // ← invullen
+  pc:      '2671 XX',                 // ← invullen
+  stad:    'Naaldwijk',
+  tel:     '+31 (0)00 000 0000',      // ← invullen
+  email:   'info@vanwindentechniek.nl', // ← invullen
+  kvk:     '00000000',               // ← invullen
+  btwnr:   'NL000000000B00',         // ← invullen
+  iban:    'NL00 BANK 0000 0000 00', // ← invullen
+}
+
 const styles = StyleSheet.create({
-  // ── Shared ──────────────────────────────────────────────
-  pagePortrait: {
+  page: {
     fontFamily: 'Helvetica',
     fontSize: 9,
     color: '#333333',
@@ -20,29 +34,8 @@ const styles = StyleSheet.create({
     paddingBottom: 60,
     paddingHorizontal: 40,
   },
-  pageLandscape: {
-    fontFamily: 'Helvetica',
-    fontSize: 9,
-    color: '#333333',
-    paddingTop: 32,
-    paddingBottom: 52,
-    paddingHorizontal: 36,
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 28,
-    left: 36,
-    right: 36,
-    borderTopWidth: 0.5,
-    borderTopColor: '#CCCCCC',
-    paddingTop: 7,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  footerText: { fontSize: 7, color: '#999999' },
-  pageNumber: { fontSize: 7, color: '#999999' },
 
-  // ── Page 1 header ───────────────────────────────────────
+  // ── Header ──────────────────────────────────────────────
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -53,15 +46,11 @@ const styles = StyleSheet.create({
     borderBottomColor: '#00E8FF',
   },
   logo: { width: 150, height: 48, objectFit: 'contain' },
-  companyName: {
-    fontSize: 16,
-    fontFamily: 'Helvetica-Bold',
-    color: '#2D2D2D',
-  },
-  companyDetails: { fontSize: 7.5, color: '#666666', marginTop: 5, lineHeight: 1.5 },
+  companyName: { fontSize: 16, fontFamily: 'Helvetica-Bold', color: '#2D2D2D' },
+  companyDetails: { fontSize: 7.5, color: '#666666', marginTop: 5, lineHeight: 1.6 },
   offerteInfo: { alignItems: 'flex-end' },
   offerteTitle: { fontSize: 20, fontFamily: 'Helvetica-Bold', color: '#2D2D2D' },
-  offerteDetails: { fontSize: 8, color: '#666666', marginTop: 4, textAlign: 'right', lineHeight: 1.6 },
+  offerteDetails: { fontSize: 8, color: '#666666', marginTop: 4, textAlign: 'right', lineHeight: 1.7 },
   badge: {
     backgroundColor: '#2D2D2D',
     color: '#00E8FF',
@@ -87,11 +76,10 @@ const styles = StyleSheet.create({
   recipientDetails: { fontSize: 8, color: '#666666', marginTop: 2 },
 
   // ── Subject + intro ──────────────────────────────────────
-  subject: { marginBottom: 10 },
-  subjectText: { fontSize: 10.5, fontFamily: 'Helvetica-Bold', color: '#2D2D2D' },
+  subjectText: { fontSize: 10.5, fontFamily: 'Helvetica-Bold', color: '#2D2D2D', marginBottom: 8 },
   intro: { fontSize: 8.5, color: '#555555', lineHeight: 1.5, marginBottom: 14 },
 
-  // ── Summary table (page 1) ───────────────────────────────
+  // ── Table shared ─────────────────────────────────────────
   tableHeader: {
     flexDirection: 'row',
     backgroundColor: '#2D2D2D',
@@ -102,23 +90,23 @@ const styles = StyleSheet.create({
   tableHeaderCell: { color: '#FFFFFF', fontSize: 7.5, fontFamily: 'Helvetica-Bold' },
   tableRow: {
     flexDirection: 'row',
-    paddingVertical: 6,
+    paddingVertical: 5,
     paddingHorizontal: 4,
     borderBottomWidth: 0.5,
-    borderBottomColor: '#E8E8E8',
+    borderBottomColor: '#EBEBEB',
   },
   tableRowAlt: { backgroundColor: '#F9F9F9' },
   tableCell: { fontSize: 8.5, color: '#333333' },
-  tableCellMuted: { fontSize: 7, color: '#888888', marginTop: 1 },
   tableCellRight: { textAlign: 'right' },
+  tableCellMuted: { fontSize: 7, color: '#888888', marginTop: 1.5 },
 
-  // Summary table column widths
+  // ── Summary table columns (page 1) ───────────────────────
   s_nr:      { width: '5%' },
   s_datum:   { width: '11%' },
   s_project: { width: '65%' },
   s_totaal:  { width: '19%', textAlign: 'right' },
 
-  // ── Totals block (page 1) ────────────────────────────────
+  // ── Totals block ─────────────────────────────────────────
   totalsBlock: {
     marginTop: 12,
     marginLeft: 'auto',
@@ -134,12 +122,7 @@ const styles = StyleSheet.create({
   },
   totalsLabel: { fontSize: 8, color: '#666666' },
   totalsValue: { fontSize: 8, color: '#333333', fontFamily: 'Helvetica-Bold' },
-  totalsDivider: {
-    borderBottomWidth: 1,
-    borderBottomColor: '#BBBBBB',
-    marginHorizontal: 10,
-    marginVertical: 2,
-  },
+  totalsDivider: { borderBottomWidth: 1, borderBottomColor: '#BBBBBB', marginHorizontal: 10, marginVertical: 2 },
   grandTotalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -154,7 +137,7 @@ const styles = StyleSheet.create({
 
   // ── Notes ────────────────────────────────────────────────
   notes: {
-    marginTop: 'auto',
+    marginTop: 16,
     padding: 8,
     backgroundColor: '#F9F9F9',
     borderRadius: 3,
@@ -163,7 +146,22 @@ const styles = StyleSheet.create({
   },
   notesText: { fontSize: 7.5, color: '#666666', lineHeight: 1.5 },
 
-  // ── Page 2 header (compact) ──────────────────────────────
+  // ── Footer ───────────────────────────────────────────────
+  footer: {
+    position: 'absolute',
+    bottom: 28,
+    left: 40,
+    right: 40,
+    borderTopWidth: 0.5,
+    borderTopColor: '#CCCCCC',
+    paddingTop: 7,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  footerText: { fontSize: 7, color: '#999999' },
+  pageNumber: { fontSize: 7, color: '#999999' },
+
+  // ── Page 2 compact header ─────────────────────────────────
   headerSmall: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -179,17 +177,17 @@ const styles = StyleSheet.create({
   headerSmallTitle: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#2D2D2D' },
   headerSmallSub: { fontSize: 7.5, color: '#888888', marginTop: 2 },
 
-  // ── Detail table (page 2) ────────────────────────────────
-  d_nr:      { width: '4%' },
-  d_datum:   { width: '9%' },
-  d_project: { width: '25%' },
-  d_uren:    { width: '6%', textAlign: 'right' },
-  d_tarief:  { width: '7%', textAlign: 'right' },
-  d_arbeid:  { width: '11%', textAlign: 'right' },
-  d_km:      { width: '6%', textAlign: 'right' },
-  d_kmverg:  { width: '10%', textAlign: 'right' },
-  d_reis:    { width: '10%', textAlign: 'right' },
-  d_totaal:  { width: '12%', textAlign: 'right' },
+  // ── Detail table columns (page 2, portrait) ───────────────
+  // Row 1: Nr | Datum | Project naam + locatie/werkbon | Totaal
+  d_nr:      { width: '5%' },
+  d_datum:   { width: '11%' },
+  d_project: { width: '68%' },
+  d_totaal:  { width: '16%', textAlign: 'right' },
+  // Row 2: indent (16%) | detail string (84%)
+  d_indent:  { width: '16%' },
+  d_detail:  { width: '84%' },
+
+  detailText: { fontSize: 7.5, color: '#777777', paddingBottom: 4 },
 })
 
 function formatEuro(amount: number): string {
@@ -232,18 +230,20 @@ export default function OfferteDocument({ offerte, logoUrl }: OfferteDocumentPro
       {/* ═══════════════════════════════════════════════════
           PAGINA 1 — Overzicht (Portrait A4)
       ════════════════════════════════════════════════════ */}
-      <Page size="A4" orientation="portrait" style={styles.pagePortrait}>
+      <Page size="A4" orientation="portrait" style={styles.page}>
 
         {/* Header */}
         <View style={styles.header}>
           <View>
             {logoUrl
               ? <Image src={logoUrl} style={styles.logo} />
-              : <Text style={styles.companyName}>VAN WINDEN TECHNIEK</Text>
+              : <Text style={styles.companyName}>{BEDRIJF.naam.toUpperCase()}</Text>
             }
             <Text style={styles.companyDetails}>
-              Naaldwijk, Zuid-Holland{'\n'}
-              KvK: 00000000  |  BTW: NL000000000B00
+              {BEDRIJF.straat}{'\n'}
+              {BEDRIJF.pc} {BEDRIJF.stad}{'\n'}
+              Tel: {BEDRIJF.tel}{'\n'}
+              {BEDRIJF.email}
             </Text>
           </View>
           <View style={styles.offerteInfo}>
@@ -251,7 +251,10 @@ export default function OfferteDocument({ offerte, logoUrl }: OfferteDocumentPro
             <Text style={styles.offerteDetails}>
               Nummer: {offerteNummer}{'\n'}
               Datum: {today}{'\n'}
-              Periode: {offerte.maand} {offerte.jaar}
+              Periode: {offerte.maand} {offerte.jaar}{'\n'}
+              KvK: {BEDRIJF.kvk}{'\n'}
+              BTW-nr: {BEDRIJF.btwnr}{'\n'}
+              IBAN: {BEDRIJF.iban}
             </Text>
             <View style={styles.badge}>
               <Text>{offerte.klussen.length} werkbonnen</Text>
@@ -268,16 +271,14 @@ export default function OfferteDocument({ offerte, logoUrl }: OfferteDocumentPro
           </Text>
         </View>
 
-        {/* Subject */}
-        <View style={styles.subject}>
-          <Text style={styles.subjectText}>
-            Betreft: Maandelijkse onderhoudswerkzaamheden {offerte.maand} {offerte.jaar}
-          </Text>
-        </View>
+        {/* Subject + intro */}
+        <Text style={styles.subjectText}>
+          Betreft: Maandelijkse onderhoudswerkzaamheden {offerte.maand} {offerte.jaar}
+        </Text>
         <Text style={styles.intro}>
           Hierbij ontvangt u onze offerte voor de uitgevoerde onderhoudswerkzaamheden in {offerte.maand} {offerte.jaar}.
           Alle werkzaamheden zijn uitgevoerd conform de overeengekomen kwaliteitsstandaarden.
-          Reiskosten worden berekend vanuit Naaldwijk, Zuid-Holland.
+          Reiskosten worden berekend vanuit {BEDRIJF.stad}.
         </Text>
 
         {/* Summary table */}
@@ -299,7 +300,7 @@ export default function OfferteDocument({ offerte, logoUrl }: OfferteDocumentPro
               <Text style={[styles.tableCell, styles.s_datum]}>{klus.datum}</Text>
               <View style={styles.s_project}>
                 <Text style={[styles.tableCell, { fontFamily: 'Helvetica-Bold', color: '#1A1A1A' }]}>
-                  {klus.projectNaam.length > 52 ? klus.projectNaam.slice(0, 52) + '…' : klus.projectNaam}
+                  {klus.projectNaam.length > 55 ? klus.projectNaam.slice(0, 55) + '…' : klus.projectNaam}
                 </Text>
                 <Text style={styles.tableCellMuted}>{klus.locatie} · {klus.werkbonNummer}</Text>
               </View>
@@ -342,28 +343,28 @@ export default function OfferteDocument({ offerte, logoUrl }: OfferteDocumentPro
         {/* Notes */}
         <View style={styles.notes}>
           <Text style={styles.notesText}>
-            Reiskosten berekend vanuit Naaldwijk, Zuid-Holland (retour) · Kilometervergoeding: €0,50/km · BTW: 21% · Betalingstermijn: 30 dagen na factuurdatum
+            Reiskosten berekend vanuit {BEDRIJF.stad} (retour) · Kilometervergoeding: €0,50/km · BTW: 21% · Betalingstermijn: 30 dagen na factuurdatum
           </Text>
         </View>
 
         {/* Footer */}
         <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>Van Winden Techniek · Naaldwijk · {offerteNummer}</Text>
+          <Text style={styles.footerText}>{BEDRIJF.naam} · {BEDRIJF.stad} · {offerteNummer}</Text>
           <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `Pagina ${pageNumber} van ${totalPages}`} />
         </View>
       </Page>
 
       {/* ═══════════════════════════════════════════════════
-          PAGINA 2 — Specificaties per werkbon (Landscape A4)
+          PAGINA 2 — Specificaties per werkbon (Portrait A4)
       ════════════════════════════════════════════════════ */}
-      <Page size="A4" orientation="landscape" style={styles.pageLandscape}>
+      <Page size="A4" orientation="portrait" style={styles.page}>
 
         {/* Compact header */}
         <View style={styles.headerSmall}>
           <View>
             {logoUrl
               ? <Image src={logoUrl} style={styles.logoSmall} />
-              : <Text style={styles.companyNameSmall}>VAN WINDEN TECHNIEK</Text>
+              : <Text style={styles.companyNameSmall}>{BEDRIJF.naam.toUpperCase()}</Text>
             }
           </View>
           <View style={styles.headerSmallRight}>
@@ -372,44 +373,45 @@ export default function OfferteDocument({ offerte, logoUrl }: OfferteDocumentPro
           </View>
         </View>
 
-        {/* Detail table */}
+        {/* Detail table — 2 rows per klus */}
         <View>
+          {/* Table header */}
           <View style={styles.tableHeader}>
             <Text style={[styles.tableHeaderCell, styles.d_nr]}>#</Text>
             <Text style={[styles.tableHeaderCell, styles.d_datum]}>Datum</Text>
             <Text style={[styles.tableHeaderCell, styles.d_project]}>Project / Locatie</Text>
-            <Text style={[styles.tableHeaderCell, styles.d_uren, { textAlign: 'right' }]}>Uren</Text>
-            <Text style={[styles.tableHeaderCell, styles.d_tarief, { textAlign: 'right' }]}>Tarief</Text>
-            <Text style={[styles.tableHeaderCell, styles.d_arbeid, { textAlign: 'right' }]}>Arbeidskosten</Text>
-            <Text style={[styles.tableHeaderCell, styles.d_km, { textAlign: 'right' }]}>KM v/v</Text>
-            <Text style={[styles.tableHeaderCell, styles.d_kmverg, { textAlign: 'right' }]}>Km-vergoeding</Text>
-            <Text style={[styles.tableHeaderCell, styles.d_reis, { textAlign: 'right' }]}>Reiskosten</Text>
-            <Text style={[styles.tableHeaderCell, styles.d_totaal, { textAlign: 'right' }]}>Totaal excl. BTW</Text>
+            <Text style={[styles.tableHeaderCell, styles.d_totaal]}>Totaal excl. BTW</Text>
           </View>
+
           {offerte.klussen.map((klus, i) => (
-            <View
-              key={klus.id}
-              style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}
-            >
-              <Text style={[styles.tableCell, styles.d_nr, { color: '#AAAAAA' }]}>
-                {String(i + 1).padStart(2, '0')}
-              </Text>
-              <Text style={[styles.tableCell, styles.d_datum]}>{klus.datum}</Text>
-              <View style={styles.d_project}>
-                <Text style={[styles.tableCell, { fontFamily: 'Helvetica-Bold', color: '#1A1A1A' }]}>
-                  {klus.projectNaam.length > 34 ? klus.projectNaam.slice(0, 34) + '…' : klus.projectNaam}
+            <View key={klus.id} style={i % 2 === 1 ? styles.tableRowAlt : {}}>
+              {/* Regel 1: naam + datum + totaal */}
+              <View style={[styles.tableRow, { borderBottomWidth: 0, paddingBottom: 2 }]}>
+                <Text style={[styles.tableCell, styles.d_nr, { color: '#AAAAAA' }]}>
+                  {String(i + 1).padStart(2, '0')}
                 </Text>
-                <Text style={styles.tableCellMuted}>{klus.locatie} · {klus.werkbonNummer}</Text>
+                <Text style={[styles.tableCell, styles.d_datum]}>{klus.datum}</Text>
+                <View style={styles.d_project}>
+                  <Text style={[styles.tableCell, { fontFamily: 'Helvetica-Bold', color: '#1A1A1A' }]}>
+                    {klus.projectNaam.length > 58 ? klus.projectNaam.slice(0, 58) + '…' : klus.projectNaam}
+                  </Text>
+                  <Text style={styles.tableCellMuted}>{klus.locatie} · {klus.werkbonNummer}</Text>
+                </View>
+                <Text style={[styles.tableCell, styles.d_totaal, { fontFamily: 'Helvetica-Bold' }]}>
+                  {formatEuro(klus.totaal)}
+                </Text>
               </View>
-              <Text style={[styles.tableCell, styles.d_uren, styles.tableCellRight]}>{formatNL(klus.duur)}</Text>
-              <Text style={[styles.tableCell, styles.d_tarief, styles.tableCellRight]}>{formatEuro(klus.uurtarief)}</Text>
-              <Text style={[styles.tableCell, styles.d_arbeid, styles.tableCellRight]}>{formatEuro(klus.arbeidskosten)}</Text>
-              <Text style={[styles.tableCell, styles.d_km, styles.tableCellRight]}>{formatNL(klus.afstandKm, 0)}</Text>
-              <Text style={[styles.tableCell, styles.d_kmverg, styles.tableCellRight]}>{formatEuro(klus.reiskostenKm)}</Text>
-              <Text style={[styles.tableCell, styles.d_reis, styles.tableCellRight]}>{formatEuro(klus.reiskostenUur)}</Text>
-              <Text style={[styles.tableCell, styles.d_totaal, styles.tableCellRight, { fontFamily: 'Helvetica-Bold' }]}>
-                {formatEuro(klus.totaal)}
-              </Text>
+              {/* Regel 2: berekeningsdetails */}
+              <View style={[{ flexDirection: 'row', paddingHorizontal: 4, paddingBottom: 5, borderBottomWidth: 0.5, borderBottomColor: '#EBEBEB' }]}>
+                <View style={styles.d_indent} />
+                <Text style={styles.detailText}>
+                  Arbeid: {formatNL(klus.duur)} u × {formatEuro(klus.uurtarief)}/u = {formatEuro(klus.arbeidskosten)}
+                  {'   ·   '}
+                  Km-vergoeding: {formatNL(klus.afstandKm, 0)} km × €0,50 = {formatEuro(klus.reiskostenKm)}
+                  {'   ·   '}
+                  Reiskosten: {formatEuro(klus.reiskostenUur)}
+                </Text>
+              </View>
             </View>
           ))}
         </View>
@@ -437,7 +439,7 @@ export default function OfferteDocument({ offerte, logoUrl }: OfferteDocumentPro
 
         {/* Footer */}
         <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>Van Winden Techniek · Naaldwijk · {offerteNummer}</Text>
+          <Text style={styles.footerText}>{BEDRIJF.naam} · {BEDRIJF.stad} · {offerteNummer}</Text>
           <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `Pagina ${pageNumber} van ${totalPages}`} />
         </View>
       </Page>
