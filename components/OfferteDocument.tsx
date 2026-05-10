@@ -8,11 +8,11 @@ import {
   Image,
   StyleSheet,
 } from '@react-pdf/renderer'
-import type { Offerte, Klus } from '@/types'
+import type { Offerte } from '@/types'
 
-// Register fonts (using built-in Helvetica)
 const styles = StyleSheet.create({
-  page: {
+  // ── Shared ──────────────────────────────────────────────
+  pagePortrait: {
     fontFamily: 'Helvetica',
     fontSize: 9,
     color: '#333333',
@@ -20,112 +20,78 @@ const styles = StyleSheet.create({
     paddingBottom: 60,
     paddingHorizontal: 40,
   },
-  // Header
+  pageLandscape: {
+    fontFamily: 'Helvetica',
+    fontSize: 9,
+    color: '#333333',
+    paddingTop: 32,
+    paddingBottom: 52,
+    paddingHorizontal: 36,
+  },
+  footer: {
+    position: 'absolute',
+    bottom: 28,
+    left: 36,
+    right: 36,
+    borderTopWidth: 0.5,
+    borderTopColor: '#CCCCCC',
+    paddingTop: 7,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  footerText: { fontSize: 7, color: '#999999' },
+  pageNumber: { fontSize: 7, color: '#999999' },
+
+  // ── Page 1 header ───────────────────────────────────────
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 24,
+    marginBottom: 20,
     paddingBottom: 12,
     borderBottomWidth: 2,
     borderBottomColor: '#00E8FF',
   },
-  companyBlock: {
-    flexDirection: 'column',
-    justifyContent: 'center',
-  },
-  logo: {
-    width: 160,
-    height: 52,
-    objectFit: 'contain',
-  },
+  logo: { width: 150, height: 48, objectFit: 'contain' },
   companyName: {
-    fontSize: 18,
-    fontFamily: 'Helvetica-Bold',
-    color: '#2D2D2D',
-    letterSpacing: 0.5,
-  },
-  companySubtitle: {
-    fontSize: 10,
-    color: '#0055FF',
-    marginTop: 2,
-  },
-  companyDetails: {
-    fontSize: 8,
-    color: '#666666',
-    marginTop: 6,
-    lineHeight: 1.4,
-  },
-  offerteInfo: {
-    alignItems: 'flex-end',
-  },
-  offerteTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontFamily: 'Helvetica-Bold',
     color: '#2D2D2D',
   },
-  offerteDetails: {
-    fontSize: 8,
-    color: '#666666',
-    marginTop: 4,
-    textAlign: 'right',
-    lineHeight: 1.6,
-  },
+  companyDetails: { fontSize: 7.5, color: '#666666', marginTop: 5, lineHeight: 1.5 },
+  offerteInfo: { alignItems: 'flex-end' },
+  offerteTitle: { fontSize: 20, fontFamily: 'Helvetica-Bold', color: '#2D2D2D' },
+  offerteDetails: { fontSize: 8, color: '#666666', marginTop: 4, textAlign: 'right', lineHeight: 1.6 },
   badge: {
     backgroundColor: '#2D2D2D',
     color: '#00E8FF',
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 4,
-    fontSize: 8,
+    borderRadius: 3,
+    fontSize: 7.5,
     fontFamily: 'Helvetica-Bold',
     marginTop: 4,
   },
-  // Recipient
+
+  // ── Recipient ────────────────────────────────────────────
   recipient: {
-    marginBottom: 20,
+    marginBottom: 16,
     padding: 10,
     backgroundColor: '#F5F5F5',
     borderRadius: 4,
     borderLeftWidth: 3,
     borderLeftColor: '#0055FF',
   },
-  recipientLabel: {
-    fontSize: 7,
-    color: '#999999',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 2,
-  },
-  recipientName: {
-    fontSize: 10,
-    fontFamily: 'Helvetica-Bold',
-    color: '#2D2D2D',
-  },
-  recipientDetails: {
-    fontSize: 8,
-    color: '#666666',
-    marginTop: 2,
-  },
-  // Subject line
-  subject: {
-    marginBottom: 16,
-  },
-  subjectText: {
-    fontSize: 11,
-    fontFamily: 'Helvetica-Bold',
-    color: '#2D2D2D',
-  },
-  intro: {
-    fontSize: 8.5,
-    color: '#444444',
-    lineHeight: 1.5,
-    marginBottom: 16,
-  },
-  // Table
-  table: {
-    marginBottom: 16,
-  },
+  recipientLabel: { fontSize: 7, color: '#999999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
+  recipientName: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#2D2D2D' },
+  recipientDetails: { fontSize: 8, color: '#666666', marginTop: 2 },
+
+  // ── Subject + intro ──────────────────────────────────────
+  subject: { marginBottom: 10 },
+  subjectText: { fontSize: 10.5, fontFamily: 'Helvetica-Bold', color: '#2D2D2D' },
+  intro: { fontSize: 8.5, color: '#555555', lineHeight: 1.5, marginBottom: 14 },
+
+  // ── Summary table (page 1) ───────────────────────────────
   tableHeader: {
     flexDirection: 'row',
     backgroundColor: '#2D2D2D',
@@ -133,121 +99,97 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     borderRadius: 3,
   },
-  tableHeaderCell: {
-    color: '#FFFFFF',
-    fontSize: 7.5,
-    fontFamily: 'Helvetica-Bold',
-  },
+  tableHeaderCell: { color: '#FFFFFF', fontSize: 7.5, fontFamily: 'Helvetica-Bold' },
   tableRow: {
     flexDirection: 'row',
-    paddingVertical: 5,
+    paddingVertical: 6,
     paddingHorizontal: 4,
     borderBottomWidth: 0.5,
-    borderBottomColor: '#E0E0E0',
+    borderBottomColor: '#E8E8E8',
   },
-  tableRowAlt: {
-    backgroundColor: '#F9F9F9',
-  },
-  tableCell: {
-    fontSize: 8,
-    color: '#333333',
-  },
-  tableCellRight: {
-    textAlign: 'right',
-  },
-  // Column widths
-  colNr: { width: '4%' },
-  colDatum: { width: '9%' },
-  colProject: { width: '34%' },
-  colDuur: { width: '7%', textAlign: 'right' },
-  colTarief: { width: '9%', textAlign: 'right' },
-  colArbeid: { width: '11%', textAlign: 'right' },
-  colKm: { width: '9%', textAlign: 'right' },
-  colReisKm: { width: '10%', textAlign: 'right' },
-  colTotaal: { width: '17%', textAlign: 'right' },
-  // Subtotals
-  subtotaalSection: {
-    marginTop: 8,
+  tableRowAlt: { backgroundColor: '#F9F9F9' },
+  tableCell: { fontSize: 8.5, color: '#333333' },
+  tableCellMuted: { fontSize: 7, color: '#888888', marginTop: 1 },
+  tableCellRight: { textAlign: 'right' },
+
+  // Summary table column widths
+  s_nr:      { width: '5%' },
+  s_datum:   { width: '11%' },
+  s_project: { width: '65%' },
+  s_totaal:  { width: '19%', textAlign: 'right' },
+
+  // ── Totals block (page 1) ────────────────────────────────
+  totalsBlock: {
+    marginTop: 12,
     marginLeft: 'auto',
-    width: '50%',
+    width: '44%',
   },
-  subtotaalRow: {
+  totalsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 3,
-    paddingHorizontal: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
     borderBottomWidth: 0.5,
-    borderBottomColor: '#E0E0E0',
+    borderBottomColor: '#E8E8E8',
   },
-  subtotaalLabel: {
-    fontSize: 8,
-    color: '#666666',
+  totalsLabel: { fontSize: 8, color: '#666666' },
+  totalsValue: { fontSize: 8, color: '#333333', fontFamily: 'Helvetica-Bold' },
+  totalsDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#BBBBBB',
+    marginHorizontal: 10,
+    marginVertical: 2,
   },
-  subtotaalValue: {
-    fontSize: 8,
-    color: '#333333',
-    fontFamily: 'Helvetica-Bold',
-  },
-  totaalRow: {
+  grandTotalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 6,
-    paddingHorizontal: 8,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
     backgroundColor: '#2D2D2D',
     borderRadius: 3,
     marginTop: 4,
   },
-  totaalLabel: {
-    fontSize: 10,
-    fontFamily: 'Helvetica-Bold',
-    color: '#FFFFFF',
-  },
-  totaalValue: {
-    fontSize: 10,
-    fontFamily: 'Helvetica-Bold',
-    color: '#00E8FF',
-  },
-  // Footer
-  footer: {
-    position: 'absolute',
-    bottom: 30,
-    left: 40,
-    right: 40,
-    borderTopWidth: 0.5,
-    borderTopColor: '#CCCCCC',
-    paddingTop: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  footerText: {
-    fontSize: 7,
-    color: '#999999',
-  },
-  // Page number
-  pageNumber: {
-    fontSize: 7,
-    color: '#999999',
-  },
-  // Notes
+  grandTotalLabel: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#FFFFFF' },
+  grandTotalValue: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#00E8FF' },
+
+  // ── Notes ────────────────────────────────────────────────
   notes: {
-    marginTop: 16,
-    padding: 10,
+    marginTop: 'auto',
+    padding: 8,
     backgroundColor: '#F9F9F9',
-    borderRadius: 4,
+    borderRadius: 3,
     borderLeftWidth: 2,
     borderLeftColor: '#00E8FF',
   },
-  notesTitle: {
-    fontSize: 8,
-    fontFamily: 'Helvetica-Bold',
-    color: '#2D2D2D',
-    marginBottom: 4,
+  notesText: { fontSize: 7.5, color: '#666666', lineHeight: 1.5 },
+
+  // ── Page 2 header (compact) ──────────────────────────────
+  headerSmall: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#00E8FF',
   },
-  notesText: {
-    fontSize: 7.5,
-    color: '#666666',
-    lineHeight: 1.5,
-  },
+  logoSmall: { width: 110, height: 34, objectFit: 'contain' },
+  companyNameSmall: { fontSize: 12, fontFamily: 'Helvetica-Bold', color: '#2D2D2D' },
+  headerSmallRight: { alignItems: 'flex-end' },
+  headerSmallTitle: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#2D2D2D' },
+  headerSmallSub: { fontSize: 7.5, color: '#888888', marginTop: 2 },
+
+  // ── Detail table (page 2) ────────────────────────────────
+  d_nr:      { width: '4%' },
+  d_datum:   { width: '9%' },
+  d_project: { width: '25%' },
+  d_uren:    { width: '6%', textAlign: 'right' },
+  d_tarief:  { width: '7%', textAlign: 'right' },
+  d_arbeid:  { width: '11%', textAlign: 'right' },
+  d_km:      { width: '6%', textAlign: 'right' },
+  d_kmverg:  { width: '10%', textAlign: 'right' },
+  d_reis:    { width: '10%', textAlign: 'right' },
+  d_totaal:  { width: '12%', textAlign: 'right' },
 })
 
 function formatEuro(amount: number): string {
@@ -278,6 +220,8 @@ export default function OfferteDocument({ offerte, logoUrl }: OfferteDocumentPro
   })
 
   const offerteNummer = `OFT-${offerte.jaar}-${offerte.maand.toUpperCase().slice(0, 3)}-${Date.now().toString().slice(-4)}`
+  const btw = offerte.btw ?? Math.round(offerte.totaal * 0.21 * 100) / 100
+  const totaalInclBTW = offerte.totaalInclBTW ?? Math.round(offerte.totaal * 1.21 * 100) / 100
 
   return (
     <Document
@@ -285,19 +229,21 @@ export default function OfferteDocument({ offerte, logoUrl }: OfferteDocumentPro
       author="Van Winden Techniek"
       subject="Maandelijkse onderhoud offerte"
     >
-      <Page size="A4" orientation="landscape" style={styles.page}>
+      {/* ═══════════════════════════════════════════════════
+          PAGINA 1 — Overzicht (Portrait A4)
+      ════════════════════════════════════════════════════ */}
+      <Page size="A4" orientation="portrait" style={styles.pagePortrait}>
+
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.companyBlock}>
-            {logoUrl ? (
-              <Image src={logoUrl} style={styles.logo} />
-            ) : (
-              <Text style={styles.companyName}>VAN WINDEN TECHNIEK</Text>
-            )}
+          <View>
+            {logoUrl
+              ? <Image src={logoUrl} style={styles.logo} />
+              : <Text style={styles.companyName}>VAN WINDEN TECHNIEK</Text>
+            }
             <Text style={styles.companyDetails}>
               Naaldwijk, Zuid-Holland{'\n'}
-              KvK: 00000000{'\n'}
-              BTW: NL000000000B00
+              KvK: 00000000  |  BTW: NL000000000B00
             </Text>
           </View>
           <View style={styles.offerteInfo}>
@@ -318,7 +264,7 @@ export default function OfferteDocument({ offerte, logoUrl }: OfferteDocumentPro
           <Text style={styles.recipientLabel}>Gericht aan</Text>
           <Text style={styles.recipientName}>ExcelAir System-Care</Text>
           <Text style={styles.recipientDetails}>
-            Onderhoud en servicewerkzaamheden - {offerte.maand} {offerte.jaar}
+            Onderhoud en servicewerkzaamheden — {offerte.maand} {offerte.jaar}
           </Text>
         </View>
 
@@ -328,117 +274,171 @@ export default function OfferteDocument({ offerte, logoUrl }: OfferteDocumentPro
             Betreft: Maandelijkse onderhoudswerkzaamheden {offerte.maand} {offerte.jaar}
           </Text>
         </View>
-
         <Text style={styles.intro}>
-          Hierbij ontvangt u onze offerte voor de uitgevoerde onderhoudswerkzaamheden in de maand {offerte.maand} {offerte.jaar}.
+          Hierbij ontvangt u onze offerte voor de uitgevoerde onderhoudswerkzaamheden in {offerte.maand} {offerte.jaar}.
           Alle werkzaamheden zijn uitgevoerd conform de overeengekomen kwaliteitsstandaarden.
           Reiskosten worden berekend vanuit Naaldwijk, Zuid-Holland.
         </Text>
 
-        {/* Table */}
-        <View style={styles.table}>
-          {/* Header */}
+        {/* Summary table */}
+        <View>
           <View style={styles.tableHeader}>
-            <Text style={[styles.tableHeaderCell, styles.colNr]}>#</Text>
-            <Text style={[styles.tableHeaderCell, styles.colDatum]}>Datum</Text>
-            <Text style={[styles.tableHeaderCell, styles.colProject]}>Project / Locatie</Text>
-            <Text style={[styles.tableHeaderCell, styles.colDuur, { textAlign: 'right' }]}>Uren</Text>
-            <Text style={[styles.tableHeaderCell, styles.colTarief, { textAlign: 'right' }]}>Tarief</Text>
-            <Text style={[styles.tableHeaderCell, styles.colArbeid, { textAlign: 'right' }]}>Arbeid</Text>
-            <Text style={[styles.tableHeaderCell, styles.colKm, { textAlign: 'right' }]}>KM (v/v)</Text>
-            <Text style={[styles.tableHeaderCell, styles.colReisKm, { textAlign: 'right' }]}>Reis km</Text>
-            <Text style={[styles.tableHeaderCell, styles.colTotaal, { textAlign: 'right' }]}>Totaal</Text>
+            <Text style={[styles.tableHeaderCell, styles.s_nr]}>#</Text>
+            <Text style={[styles.tableHeaderCell, styles.s_datum]}>Datum</Text>
+            <Text style={[styles.tableHeaderCell, styles.s_project]}>Project / Locatie</Text>
+            <Text style={[styles.tableHeaderCell, styles.s_totaal]}>Totaal excl. BTW</Text>
           </View>
-
-          {/* Rows */}
-          {offerte.klussen.map((klus, index) => (
+          {offerte.klussen.map((klus, i) => (
             <View
               key={klus.id}
-              style={[
-                styles.tableRow,
-                index % 2 === 1 ? styles.tableRowAlt : {},
-              ]}
+              style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}
             >
-              <Text style={[styles.tableCell, styles.colNr, { color: '#999999' }]}>
-                {String(index + 1).padStart(2, '0')}
+              <Text style={[styles.tableCell, styles.s_nr, { color: '#AAAAAA' }]}>
+                {String(i + 1).padStart(2, '0')}
               </Text>
-              <Text style={[styles.tableCell, styles.colDatum]}>{klus.datum}</Text>
-              <View style={styles.colProject}>
-                <Text style={[styles.tableCell, { fontFamily: 'Helvetica-Bold', color: '#2D2D2D' }]}>
-                  {klus.projectNaam.length > 38
-                    ? klus.projectNaam.substring(0, 38) + '...'
-                    : klus.projectNaam}
+              <Text style={[styles.tableCell, styles.s_datum]}>{klus.datum}</Text>
+              <View style={styles.s_project}>
+                <Text style={[styles.tableCell, { fontFamily: 'Helvetica-Bold', color: '#1A1A1A' }]}>
+                  {klus.projectNaam.length > 52 ? klus.projectNaam.slice(0, 52) + '…' : klus.projectNaam}
                 </Text>
-                <Text style={[styles.tableCell, { color: '#888888', fontSize: 7 }]}>
-                  {klus.locatie} &bull; {klus.werkbonNummer}
-                </Text>
+                <Text style={styles.tableCellMuted}>{klus.locatie} · {klus.werkbonNummer}</Text>
               </View>
-              <Text style={[styles.tableCell, styles.colDuur, styles.tableCellRight]}>
-                {formatNL(klus.duur)}
-              </Text>
-              <Text style={[styles.tableCell, styles.colTarief, styles.tableCellRight]}>
-                {formatEuro(klus.uurtarief)}
-              </Text>
-              <Text style={[styles.tableCell, styles.colArbeid, styles.tableCellRight]}>
-                {formatEuro(klus.arbeidskosten)}
-              </Text>
-              <Text style={[styles.tableCell, styles.colKm, styles.tableCellRight]}>
-                {formatNL(klus.afstandKm, 0)} km
-              </Text>
-              <Text style={[styles.tableCell, styles.colReisKm, styles.tableCellRight]}>
-                {formatEuro(klus.reiskostenKm)}
-              </Text>
-              <Text style={[styles.tableCell, styles.colTotaal, styles.tableCellRight, { fontFamily: 'Helvetica-Bold' }]}>
+              <Text style={[styles.tableCell, styles.s_totaal, { fontFamily: 'Helvetica-Bold' }]}>
                 {formatEuro(klus.totaal)}
               </Text>
             </View>
           ))}
         </View>
 
-        {/* Subtotals */}
-        <View style={styles.subtotaalSection}>
-          <View style={styles.subtotaalRow}>
-            <Text style={styles.subtotaalLabel}>Subtotaal arbeidskosten</Text>
-            <Text style={styles.subtotaalValue}>{formatEuro(offerte.subtotaalArbeid)}</Text>
+        {/* Totals */}
+        <View style={styles.totalsBlock}>
+          <View style={styles.totalsRow}>
+            <Text style={styles.totalsLabel}>Arbeidskosten</Text>
+            <Text style={styles.totalsValue}>{formatEuro(offerte.subtotaalArbeid)}</Text>
           </View>
-          <View style={styles.subtotaalRow}>
-            <Text style={styles.subtotaalLabel}>Subtotaal reiskosten (km)</Text>
-            <Text style={styles.subtotaalValue}>{formatEuro(offerte.subtotaalReisKm)}</Text>
+          <View style={styles.totalsRow}>
+            <Text style={styles.totalsLabel}>Kilometervergoeding</Text>
+            <Text style={styles.totalsValue}>{formatEuro(offerte.subtotaalReisKm)}</Text>
           </View>
-          <View style={[styles.subtotaalRow, { borderBottomWidth: 1, borderBottomColor: '#CCCCCC' }]}>
-            <Text style={styles.subtotaalLabel}>Totaal excl. BTW</Text>
-            <Text style={styles.subtotaalValue}>{formatEuro(offerte.totaal)}</Text>
+          <View style={styles.totalsRow}>
+            <Text style={styles.totalsLabel}>Reiskosten</Text>
+            <Text style={styles.totalsValue}>{formatEuro(offerte.subtotaalReisUur)}</Text>
           </View>
-          <View style={styles.subtotaalRow}>
-            <Text style={styles.subtotaalLabel}>BTW 21%</Text>
-            <Text style={styles.subtotaalValue}>{formatEuro(offerte.btw)}</Text>
+          <View style={styles.totalsDivider} />
+          <View style={styles.totalsRow}>
+            <Text style={styles.totalsLabel}>Totaal excl. BTW</Text>
+            <Text style={styles.totalsValue}>{formatEuro(offerte.totaal)}</Text>
           </View>
-          <View style={styles.totaalRow}>
-            <Text style={styles.totaalLabel}>TOTAAL incl. BTW</Text>
-            <Text style={styles.totaalValue}>{formatEuro(offerte.totaalInclBTW)}</Text>
+          <View style={styles.totalsRow}>
+            <Text style={styles.totalsLabel}>BTW 21%</Text>
+            <Text style={styles.totalsValue}>{formatEuro(btw)}</Text>
+          </View>
+          <View style={styles.grandTotalRow}>
+            <Text style={styles.grandTotalLabel}>TOTAAL incl. BTW</Text>
+            <Text style={styles.grandTotalValue}>{formatEuro(totaalInclBTW)}</Text>
           </View>
         </View>
 
         {/* Notes */}
         <View style={styles.notes}>
-          <Text style={styles.notesTitle}>Opmerkingen</Text>
           <Text style={styles.notesText}>
-            - Reiskosten berekend vanuit Naaldwijk, Zuid-Holland (retour){'\n'}
-            - Reiskosten km: €0,50 per km{'\n'}
-            - BTW: 21%{'\n'}
-            - Betalingstermijn: 30 dagen na factuurdatum
+            Reiskosten berekend vanuit Naaldwijk, Zuid-Holland (retour) · Kilometervergoeding: €0,50/km · BTW: 21% · Betalingstermijn: 30 dagen na factuurdatum
           </Text>
         </View>
 
         {/* Footer */}
         <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>
-            Van Winden Techniek | Naaldwijk | {offerteNummer}
-          </Text>
-          <Text
-            style={styles.pageNumber}
-            render={({ pageNumber, totalPages }) => `Pagina ${pageNumber} van ${totalPages}`}
-          />
+          <Text style={styles.footerText}>Van Winden Techniek · Naaldwijk · {offerteNummer}</Text>
+          <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `Pagina ${pageNumber} van ${totalPages}`} />
+        </View>
+      </Page>
+
+      {/* ═══════════════════════════════════════════════════
+          PAGINA 2 — Specificaties per werkbon (Landscape A4)
+      ════════════════════════════════════════════════════ */}
+      <Page size="A4" orientation="landscape" style={styles.pageLandscape}>
+
+        {/* Compact header */}
+        <View style={styles.headerSmall}>
+          <View>
+            {logoUrl
+              ? <Image src={logoUrl} style={styles.logoSmall} />
+              : <Text style={styles.companyNameSmall}>VAN WINDEN TECHNIEK</Text>
+            }
+          </View>
+          <View style={styles.headerSmallRight}>
+            <Text style={styles.headerSmallTitle}>Specificaties per werkbon</Text>
+            <Text style={styles.headerSmallSub}>{offerte.maand} {offerte.jaar} · {offerteNummer}</Text>
+          </View>
+        </View>
+
+        {/* Detail table */}
+        <View>
+          <View style={styles.tableHeader}>
+            <Text style={[styles.tableHeaderCell, styles.d_nr]}>#</Text>
+            <Text style={[styles.tableHeaderCell, styles.d_datum]}>Datum</Text>
+            <Text style={[styles.tableHeaderCell, styles.d_project]}>Project / Locatie</Text>
+            <Text style={[styles.tableHeaderCell, styles.d_uren, { textAlign: 'right' }]}>Uren</Text>
+            <Text style={[styles.tableHeaderCell, styles.d_tarief, { textAlign: 'right' }]}>Tarief</Text>
+            <Text style={[styles.tableHeaderCell, styles.d_arbeid, { textAlign: 'right' }]}>Arbeidskosten</Text>
+            <Text style={[styles.tableHeaderCell, styles.d_km, { textAlign: 'right' }]}>KM v/v</Text>
+            <Text style={[styles.tableHeaderCell, styles.d_kmverg, { textAlign: 'right' }]}>Km-vergoeding</Text>
+            <Text style={[styles.tableHeaderCell, styles.d_reis, { textAlign: 'right' }]}>Reiskosten</Text>
+            <Text style={[styles.tableHeaderCell, styles.d_totaal, { textAlign: 'right' }]}>Totaal excl. BTW</Text>
+          </View>
+          {offerte.klussen.map((klus, i) => (
+            <View
+              key={klus.id}
+              style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}
+            >
+              <Text style={[styles.tableCell, styles.d_nr, { color: '#AAAAAA' }]}>
+                {String(i + 1).padStart(2, '0')}
+              </Text>
+              <Text style={[styles.tableCell, styles.d_datum]}>{klus.datum}</Text>
+              <View style={styles.d_project}>
+                <Text style={[styles.tableCell, { fontFamily: 'Helvetica-Bold', color: '#1A1A1A' }]}>
+                  {klus.projectNaam.length > 34 ? klus.projectNaam.slice(0, 34) + '…' : klus.projectNaam}
+                </Text>
+                <Text style={styles.tableCellMuted}>{klus.locatie} · {klus.werkbonNummer}</Text>
+              </View>
+              <Text style={[styles.tableCell, styles.d_uren, styles.tableCellRight]}>{formatNL(klus.duur)}</Text>
+              <Text style={[styles.tableCell, styles.d_tarief, styles.tableCellRight]}>{formatEuro(klus.uurtarief)}</Text>
+              <Text style={[styles.tableCell, styles.d_arbeid, styles.tableCellRight]}>{formatEuro(klus.arbeidskosten)}</Text>
+              <Text style={[styles.tableCell, styles.d_km, styles.tableCellRight]}>{formatNL(klus.afstandKm, 0)}</Text>
+              <Text style={[styles.tableCell, styles.d_kmverg, styles.tableCellRight]}>{formatEuro(klus.reiskostenKm)}</Text>
+              <Text style={[styles.tableCell, styles.d_reis, styles.tableCellRight]}>{formatEuro(klus.reiskostenUur)}</Text>
+              <Text style={[styles.tableCell, styles.d_totaal, styles.tableCellRight, { fontFamily: 'Helvetica-Bold' }]}>
+                {formatEuro(klus.totaal)}
+              </Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Subtotals on page 2 */}
+        <View style={[styles.totalsBlock, { marginTop: 10 }]}>
+          <View style={styles.totalsRow}>
+            <Text style={styles.totalsLabel}>Arbeidskosten</Text>
+            <Text style={styles.totalsValue}>{formatEuro(offerte.subtotaalArbeid)}</Text>
+          </View>
+          <View style={styles.totalsRow}>
+            <Text style={styles.totalsLabel}>Kilometervergoeding</Text>
+            <Text style={styles.totalsValue}>{formatEuro(offerte.subtotaalReisKm)}</Text>
+          </View>
+          <View style={styles.totalsRow}>
+            <Text style={styles.totalsLabel}>Reiskosten</Text>
+            <Text style={styles.totalsValue}>{formatEuro(offerte.subtotaalReisUur)}</Text>
+          </View>
+          <View style={styles.totalsDivider} />
+          <View style={styles.grandTotalRow}>
+            <Text style={styles.grandTotalLabel}>TOTAAL incl. BTW</Text>
+            <Text style={styles.grandTotalValue}>{formatEuro(totaalInclBTW)}</Text>
+          </View>
+        </View>
+
+        {/* Footer */}
+        <View style={styles.footer} fixed>
+          <Text style={styles.footerText}>Van Winden Techniek · Naaldwijk · {offerteNummer}</Text>
+          <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `Pagina ${pageNumber} van ${totalPages}`} />
         </View>
       </Page>
     </Document>
