@@ -27,19 +27,20 @@ function extractWerkzaamhedenCodes(text: string): string[] {
 
 /**
  * Volledige projectnaam zonder werkzaamheden-codes, geschikt als Google Maps zoekopdracht.
- * Houdt het leidende prefix (PKG, PG, …) en gebouwcodes (A1, B2) intact.
- * Bij samengestelde projecten (gescheiden door '/') wordt alleen het eerste deel gebruikt.
+ * Houdt het leidende prefix (PKG, PG, …) en plaatsnamen intact.
+ * ExcelAir-notatie "CODE/ volgend gebouw" wordt gestript als één patroon.
  */
 export function extractMapsQuery(projectTaak: string): string {
   let text = projectTaak.trim()
-  // Bij samengestelde projecten ("Locatie A / Locatie B") alleen het eerste deel gebruiken
-  const slashIdx = text.indexOf('/')
-  if (slashIdx > 0) text = text.slice(0, slashIdx).trim()
-  // Iteratief trailing werkzaamheden-codes en ExcelAir-notities strippen
   let prev = ''
   while (prev !== text) {
     prev = text
+    // Strip "CODE/ rest" — ExcelAir schrijft meerdere gebouwen als "RI-VG/ Gebouw B ..."
+    // De "/" zit vast aan de code; alles daarna is een beschrijving van een ander gebouw
+    text = text.replace(/\s+[A-Z]{1,4}-[A-Z0-9]{1,6}(?:\+[A-Z0-9/]+)?\/.*$/, '').trim()
+    // Strip trailing werkzaamheden-codes: O-G, O-RGB, I-RB, RI-VG, RT350, REM
     text = text.replace(/\s+([A-Z]{1,4}-[A-Z0-9]{1,6}(?:\+[A-Z0-9/]+)?|REM|RT\d+)\s*$/, '').trim()
+    // Strip trailing ExcelAir-notities zoals "1x op afstand", "op afstand", "2x per jaar"
     text = text.replace(/\s+\d+x?\b.*$/, '').trim()
     text = text.replace(/\s+op\s+afstand\s*$/i, '').trim()
   }
@@ -50,19 +51,19 @@ function extractLocatie(projectTaak: string): string {
   let text = projectTaak.trim()
   // Strip leading prefix (PG, SG, PKG …)
   text = text.replace(LEADING_PREFIX_RE, '').trim()
-  // Iteratively strip trailing codes and notes
   let prev = ''
   while (prev !== text) {
     prev = text
-    // Strip trailing werkzaamheden codes: O-G, O-RGB, I-RB, RI-VG, RT350, REM
+    // Strip "CODE/ rest" — zelfde patroon als extractMapsQuery
+    text = text.replace(/\s+[A-Z]{1,4}-[A-Z0-9]{1,6}(?:\+[A-Z0-9/]+)?\/.*$/, '').trim()
+    // Strip trailing werkzaamheden-codes
     text = text.replace(/\s+([A-Z]{1,4}-[A-Z0-9]{1,6}(?:\+[A-Z0-9/]+)?|REM|RT\d+)\s*$/, '').trim()
-    // Strip trailing all-uppercase tokens that look like codes
+    // Strip trailing all-uppercase tokens die op codes lijken
     text = text.replace(/\s+[A-Z][A-Z0-9]{1,6}\s*$/, '').trim()
-    // Strip trailing ExcelAir notes like "1x op afstand", "2x per jaar"
+    // Strip trailing ExcelAir-notities zoals "1x op afstand", "2x per jaar"
     text = text.replace(/\s+\d+x?\b.*$/, '').trim()
   }
-  // Strip standalone building/area codes like A1, B2, C12 (e.g. "Van Dorp A1 Rotterdam" → "Van Dorp Rotterdam")
-  // These codes confuse Google Maps into finding highway A1/A2/etc. instead of the actual city
+  // Strip standalone gebouwcodes zoals A1, B2 die Google Maps naar snelwegen sturen
   text = text.replace(/\b[A-Z]\d{1,2}\b/g, '').replace(/\s{2,}/g, ' ').trim()
   return text
 }
