@@ -54,7 +54,7 @@ function parseLine(line: string): Partial<Klus> | null {
   // Format: DayNameDD-MM-YYYYN.NNProjectTaak<ProjectCode><WerkbonNr>Werkzaamheden
   // Example: Wednesday03-06-20268.00PG QPark Oostpoort Amsterdam5133004SWO251714Onderhoud O-G
   const dayRe = new RegExp(
-    `^(${DAY_NAMES_PATTERN})(\\d{2}-\\d{2}-\\d{4})(\\d+[.,]\\d+)(.+?)(\\d{5,8}[A-Z0-9]+)(WO\\d+)(.*)$`,
+    `^(${DAY_NAMES_PATTERN})(\\d{2}-\\d{2}-\\d{4})(\\d+[.,]\\d+)(.+?)(\\d{5,8}[A-Z0-9]+)([A-Z]{1,2}\\d+)(.*)$`,
     'i'
   )
   const m = trimmed.match(dayRe)
