@@ -6,7 +6,7 @@ import Header from '@/components/Header'
 import StepIndicator from '@/components/StepIndicator'
 import PdfUpload from '@/components/PdfUpload'
 import type { Klus, Offerte, Tarief } from '@/types'
-import { berekenKlus, berekenOfferteTotalen } from '@/lib/calculations'
+import { berekenKlus, berekenOfferteTotalen, formatCurrency } from '@/lib/calculations'
 
 const MAANDEN = [
   'januari', 'februari', 'maart', 'april', 'mei', 'juni',
@@ -37,6 +37,19 @@ interface KmAllocation {
 interface SlimmeKilometersResult {
   allocations: Map<number, KmAllocation>
   locatieErrors: Map<string, string> // locatie → foutmelding voor in de KlusCard
+}
+
+interface ValidationWarning {
+  type: 'error' | 'warning' | 'info'
+  veld?: string
+  opdracht?: string
+  bericht: string
+}
+
+interface ValidatieResultaat {
+  aantalOpdrachten: number
+  meldingen: ValidationWarning[]
+  offerte: Offerte
 }
 
 async function fetchKm(query: string, origin?: string): Promise<{ km: number; uren: number; error?: string }> {
@@ -188,6 +201,48 @@ async function berekenSlimmeKilometers(
   return { allocations, locatieErrors }
 }
 
+function valideerOfferte(klussen: Klus[], offerte: Offerte): ValidationWarning[] {
+  const meldingen: ValidationWarning[] = []
+
+  for (const klus of klussen) {
+    if (klus.duur <= 0) {
+      meldingen.push({
+        type: 'error',
+        veld: 'arbeidsuren',
+        opdracht: klus.projectNaam,
+        bericht: `Arbeidsuren zijn 0 of negatief bij: ${klus.projectNaam} (${klus.datum})`,
+      })
+    }
+  }
+
+  const klussen0km = klussen.filter(k => k.afstandKm === 0 && k.reisUren === 0 && !k.mapsError)
+  if (klussen0km.length > 0 && klussen0km.length === klussen.length) {
+    meldingen.push({
+      type: 'warning',
+      veld: 'afstandKm',
+      bericht: `Alle ${klussen.length} klussen hebben afstand 0 km en reistijd 0 — mogelijk is de Google Maps API niet geconfigureerd. Vul handmatig in bij de klussen.`,
+    })
+  } else if (klussen0km.length > 0) {
+    const namen = klussen0km.slice(0, 3).map(k => k.projectNaam).join(', ')
+    const extra = klussen0km.length > 3 ? ` en nog ${klussen0km.length - 3} meer` : ''
+    meldingen.push({
+      type: 'warning',
+      veld: 'afstandKm',
+      bericht: `${klussen0km.length} klus(sen) hebben afstand 0 km zonder foutmelding: ${namen}${extra}`,
+    })
+  }
+
+  const somKlussen = Math.round(klussen.reduce((s, k) => s + k.totaal, 0) * 100) / 100
+  if (Math.abs(somKlussen - offerte.totaal) > 0.01) {
+    meldingen.push({
+      type: 'warning',
+      bericht: `Totaalbedrag afwijking: som klussen = ${formatCurrency(somKlussen)}, offerte totaal = ${formatCurrency(offerte.totaal)}`,
+    })
+  }
+
+  return meldingen
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
@@ -196,10 +251,12 @@ export default function HomePage() {
   const [error, setError] = useState<string | undefined>()
   const [progress, setProgress] = useState<string>('')
   const [progressPercent, setProgressPercent] = useState(0)
+  const [validatieResultaat, setValidatieResultaat] = useState<ValidatieResultaat | null>(null)
 
   const handleUpload = useCallback(async (file: File) => {
     setIsLoading(true)
     setError(undefined)
+    setValidatieResultaat(null)
     setProgress('PDF inlezen...')
     setProgressPercent(10)
 
@@ -291,21 +348,36 @@ export default function HomePage() {
         aangemaakt: new Date().toISOString(),
       }
 
-      sessionStorage.setItem('offerte', JSON.stringify(offerte))
-
       setProgressPercent(100)
-      setProgress('Gereed!')
+      setProgress('Valideren...')
 
-      setTimeout(() => {
-        router.push('/review')
-      }, 300)
+      const meldingen = valideerOfferte(klussen, offerte)
+      setValidatieResultaat({ aantalOpdrachten: klussen.length, meldingen, offerte })
+      setIsLoading(false)
+      setProgress('')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Onbekende fout opgetreden')
       setIsLoading(false)
       setProgress('')
       setProgressPercent(0)
     }
-  }, [router])
+  }, [])
+
+  const handleBevestigen = () => {
+    if (!validatieResultaat) return
+    sessionStorage.setItem('offerte', JSON.stringify(validatieResultaat.offerte))
+    router.push('/review')
+  }
+
+  const handleOpnieuwBeginnen = () => {
+    setValidatieResultaat(null)
+    setError(undefined)
+    setProgress('')
+    setProgressPercent(0)
+  }
+
+  const aantalErrors = validatieResultaat?.meldingen.filter(m => m.type === 'error').length ?? 0
+  const aantalWarnings = validatieResultaat?.meldingen.filter(m => m.type === 'warning').length ?? 0
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#2D2D2D' }}>
@@ -325,80 +397,210 @@ export default function HomePage() {
             </p>
           </div>
 
-          {/* Upload component */}
-          <PdfUpload
-            onUpload={handleUpload}
-            isLoading={isLoading}
-            error={error}
-          />
-
-          {/* Progress */}
-          {isLoading && (
-            <div className="max-w-2xl mx-auto space-y-3">
+          {validatieResultaat ? (
+            /* ── Validatiepaneel ── */
+            <div className="max-w-2xl mx-auto space-y-4">
+              {/* Samenvatting */}
               <div
-                className="rounded-full h-2 overflow-hidden"
-                style={{ backgroundColor: '#3D3D3D' }}
+                className="rounded-xl p-4 flex items-center gap-3"
+                style={{ backgroundColor: '#3D3D3D', border: '1px solid #4D4D4D' }}
               >
                 <div
-                  className="h-full rounded-full transition-all duration-500"
-                  style={{
-                    width: `${progressPercent}%`,
-                    background: 'linear-gradient(90deg, #0055FF, #00E8FF)',
-                  }}
-                />
+                  className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 font-bold text-base"
+                  style={{ backgroundColor: 'rgba(0, 232, 255, 0.15)', color: '#00E8FF' }}
+                >
+                  {validatieResultaat.aantalOpdrachten}
+                </div>
+                <div>
+                  <p className="text-white font-semibold text-sm">
+                    {validatieResultaat.aantalOpdrachten} opdrachten uitgelezen
+                  </p>
+                  <p style={{ color: '#9D9D9D' }} className="text-xs">
+                    Vergelijk dit met het aantal regels in de PDF
+                  </p>
+                </div>
+                <div className="ml-auto">
+                  {aantalErrors === 0 && aantalWarnings === 0 ? (
+                    <span
+                      className="text-xs px-2 py-1 rounded-full font-medium"
+                      style={{ backgroundColor: 'rgba(0, 200, 100, 0.15)', color: '#00C864' }}
+                    >
+                      Alles OK
+                    </span>
+                  ) : (
+                    <span
+                      className="text-xs px-2 py-1 rounded-full font-medium"
+                      style={{ backgroundColor: 'rgba(255, 170, 0, 0.15)', color: '#FFAA00' }}
+                    >
+                      {validatieResultaat.meldingen.length} melding(en)
+                    </span>
+                  )}
+                </div>
               </div>
-              <p style={{ color: '#9D9D9D' }} className="text-sm text-center">
-                {progress}
-              </p>
-            </div>
-          )}
 
-          {/* Instructions */}
-          {!isLoading && !error && (
-            <div
-              className="max-w-2xl mx-auto rounded-xl p-5 space-y-3"
-              style={{ backgroundColor: '#3D3D3D' }}
-            >
-              <h2 className="text-white font-semibold text-sm">Hoe werkt het?</h2>
-              <ol className="space-y-2 text-sm" style={{ color: '#9D9D9D' }}>
-                <li className="flex gap-3">
-                  <span
-                    className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
-                    style={{ backgroundColor: '#0055FF', color: '#fff' }}
-                  >
-                    1
-                  </span>
-                  <span>Upload de maandplanning PDF van ExcelAir System-Care</span>
-                </li>
-                <li className="flex gap-3">
-                  <span
-                    className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
-                    style={{ backgroundColor: '#0055FF', color: '#fff' }}
-                  >
-                    2
-                  </span>
-                  <span>Werklocaties worden herkend en afstanden slim berekend via Google Maps (gedeeld per dag)</span>
-                </li>
-                <li className="flex gap-3">
-                  <span
-                    className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
-                    style={{ backgroundColor: '#0055FF', color: '#fff' }}
-                  >
-                    3
-                  </span>
-                  <span>Tarieven worden gekoppeld aan werkzaamheden codes en prijzen worden berekend</span>
-                </li>
-                <li className="flex gap-3">
-                  <span
-                    className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
-                    style={{ backgroundColor: '#0055FF', color: '#fff' }}
-                  >
-                    4
-                  </span>
-                  <span>Review en pas aan waar nodig, genereer dan de definitieve offerte PDF</span>
-                </li>
-              </ol>
+              {/* Fouten */}
+              {aantalErrors > 0 && (
+                <div
+                  className="rounded-xl overflow-hidden"
+                  style={{ border: '1px solid rgba(255, 80, 80, 0.4)' }}
+                >
+                  <div className="px-4 py-2" style={{ backgroundColor: 'rgba(255, 80, 80, 0.15)' }}>
+                    <p className="text-sm font-semibold" style={{ color: '#FF5050' }}>
+                      Fouten — controleer deze vóór het doorgaan
+                    </p>
+                  </div>
+                  <div>
+                    {validatieResultaat.meldingen.filter(m => m.type === 'error').map((m, i) => (
+                      <div
+                        key={i}
+                        className="px-4 py-3 flex items-start gap-2"
+                        style={{
+                          backgroundColor: 'rgba(255, 80, 80, 0.05)',
+                          borderTop: i > 0 ? '1px solid rgba(255, 80, 80, 0.2)' : undefined,
+                        }}
+                      >
+                        <svg className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#FF5050' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        <p className="text-sm" style={{ color: '#FF9090' }}>{m.bericht}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Waarschuwingen */}
+              {aantalWarnings > 0 && (
+                <div
+                  className="rounded-xl overflow-hidden"
+                  style={{ border: '1px solid rgba(255, 170, 0, 0.4)' }}
+                >
+                  <div className="px-4 py-2" style={{ backgroundColor: 'rgba(255, 170, 0, 0.15)' }}>
+                    <p className="text-sm font-semibold" style={{ color: '#FFAA00' }}>
+                      Waarschuwingen
+                    </p>
+                  </div>
+                  <div>
+                    {validatieResultaat.meldingen.filter(m => m.type === 'warning').map((m, i) => (
+                      <div
+                        key={i}
+                        className="px-4 py-3 flex items-start gap-2"
+                        style={{
+                          backgroundColor: 'rgba(255, 170, 0, 0.05)',
+                          borderTop: i > 0 ? '1px solid rgba(255, 170, 0, 0.2)' : undefined,
+                        }}
+                      >
+                        <svg className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#FFAA00' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                        </svg>
+                        <p className="text-sm" style={{ color: '#FFCC66' }}>{m.bericht}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Knoppen */}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleOpnieuwBeginnen}
+                  className="flex-1 py-3 px-4 rounded-xl text-sm font-medium transition-opacity hover:opacity-80"
+                  style={{ backgroundColor: '#3D3D3D', color: '#9D9D9D', border: '1px solid #4D4D4D' }}
+                >
+                  Opnieuw beginnen
+                </button>
+                <button
+                  onClick={handleBevestigen}
+                  className="flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-opacity hover:opacity-90"
+                  style={{
+                    background: aantalErrors > 0
+                      ? 'linear-gradient(90deg, #CC3333, #FF5050)'
+                      : 'linear-gradient(90deg, #0055FF, #00E8FF)',
+                    color: '#ffffff',
+                  }}
+                >
+                  {aantalErrors > 0 ? 'Toch doorgaan naar review →' : 'Doorgaan naar review →'}
+                </button>
+              </div>
             </div>
+          ) : (
+            <>
+              {/* Upload component */}
+              <PdfUpload
+                onUpload={handleUpload}
+                isLoading={isLoading}
+                error={error}
+              />
+
+              {/* Progress */}
+              {isLoading && (
+                <div className="max-w-2xl mx-auto space-y-3">
+                  <div
+                    className="rounded-full h-2 overflow-hidden"
+                    style={{ backgroundColor: '#3D3D3D' }}
+                  >
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${progressPercent}%`,
+                        background: 'linear-gradient(90deg, #0055FF, #00E8FF)',
+                      }}
+                    />
+                  </div>
+                  <p style={{ color: '#9D9D9D' }} className="text-sm text-center">
+                    {progress}
+                  </p>
+                </div>
+              )}
+
+              {/* Instructions */}
+              {!isLoading && !error && (
+                <div
+                  className="max-w-2xl mx-auto rounded-xl p-5 space-y-3"
+                  style={{ backgroundColor: '#3D3D3D' }}
+                >
+                  <h2 className="text-white font-semibold text-sm">Hoe werkt het?</h2>
+                  <ol className="space-y-2 text-sm" style={{ color: '#9D9D9D' }}>
+                    <li className="flex gap-3">
+                      <span
+                        className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
+                        style={{ backgroundColor: '#0055FF', color: '#fff' }}
+                      >
+                        1
+                      </span>
+                      <span>Upload de maandplanning PDF van ExcelAir System-Care</span>
+                    </li>
+                    <li className="flex gap-3">
+                      <span
+                        className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
+                        style={{ backgroundColor: '#0055FF', color: '#fff' }}
+                      >
+                        2
+                      </span>
+                      <span>Werklocaties worden herkend en afstanden slim berekend via Google Maps (gedeeld per dag)</span>
+                    </li>
+                    <li className="flex gap-3">
+                      <span
+                        className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
+                        style={{ backgroundColor: '#0055FF', color: '#fff' }}
+                      >
+                        3
+                      </span>
+                      <span>Tarieven worden gekoppeld aan werkzaamheden codes en prijzen worden berekend</span>
+                    </li>
+                    <li className="flex gap-3">
+                      <span
+                        className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold"
+                        style={{ backgroundColor: '#0055FF', color: '#fff' }}
+                      >
+                        4
+                      </span>
+                      <span>Review en pas aan waar nodig, genereer dan de definitieve offerte PDF</span>
+                    </li>
+                  </ol>
+                </div>
+              )}
+            </>
           )}
         </div>
       </main>
