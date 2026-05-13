@@ -12,8 +12,8 @@ const CODE_RE = /\b([A-Z]{1,4}-[A-Z0-9]{1,6}(?:\+[A-Z0-9/]+)?|REM|RT\d+)\b/g
 
 // ExcelAir project codes: 7-8 alphanumeric chars ending in letter(s), e.g. 5133004S, 8163001S
 const PROJECT_CODE_RE = /\d{5,8}[A-Z0-9]+/
-// Werkbon numbers always start with WO followed by digits
-const WERKBON_RE = /WO\d+/
+// Werkbon numbers: any uppercase prefix followed by digits (WO, WS, WA, WB, ...)
+const WERKBON_RE = /[A-Z]+\d+/
 
 function extractWerkzaamhedenCodes(text: string): string[] {
   const codes: string[] = []
@@ -76,7 +76,7 @@ function parseLine(line: string): Partial<Klus> | null {
   // Format: DayNameDD-MM-YYYYN.NNProjectTaak<ProjectCode><WerkbonNr>Werkzaamheden
   // Example: Wednesday03-06-20268.00PG QPark Oostpoort Amsterdam5133004SWO251714Onderhoud O-G
   const dayRe = new RegExp(
-    `^(${DAY_NAMES_PATTERN})(\\d{2}-\\d{2}-\\d{4})(\\d+[.,]\\d+)(.+?)(\\d{5,8}[A-Z0-9]+)([A-Z]{1,2}\\d+)(.*)$`,
+    `^(${DAY_NAMES_PATTERN})(\\d{2}-\\d{2}-\\d{4})(\\d+[.,]\\d+)(.+?)(\\d{5,8}[A-Z0-9]+)([A-Z]+\\d+)(.*)$`,
     'i'
   )
   const m = trimmed.match(dayRe)
