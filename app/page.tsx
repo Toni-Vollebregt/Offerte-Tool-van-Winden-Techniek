@@ -22,6 +22,7 @@ interface ParsedKlus {
   duur?: number
   projectNaam?: string
   locatie?: string
+  mapsQuery?: string
   projectCode?: string
   werkbonNummer?: string
   werkzaamhedenOmschrijving?: string
@@ -33,54 +34,62 @@ interface KmAllocation {
   reisUren: number    // allocatedTime / 2 (formule verdubbelt: × 2 × €55 × 1.15)
 }
 
-async function fetchKmNaarLocatie(locatie: string): Promise<{ km: number; uren: number }> {
-  try {
-    const resp = await fetch(`/api/maps?locatie=${encodeURIComponent(locatie)}`)
-    if (!resp.ok) return { km: 0, uren: 0 }
-    return await resp.json()
-  } catch {
-    return { km: 0, uren: 0 }
-  }
+interface SlimmeKilometersResult {
+  allocations: Map<number, KmAllocation>
+  locatieErrors: Map<string, string> // locatie → foutmelding voor in de KlusCard
 }
 
-async function fetchKmTussen(origin: string, destination: string): Promise<{ km: number; uren: number }> {
+async function fetchKm(query: string, origin?: string): Promise<{ km: number; uren: number; error?: string }> {
   try {
-    const resp = await fetch(
-      `/api/maps?origin=${encodeURIComponent(origin)}&locatie=${encodeURIComponent(destination)}`
-    )
-    if (!resp.ok) return { km: 0, uren: 0 }
+    const url = origin
+      ? `/api/maps?origin=${encodeURIComponent(origin)}&locatie=${encodeURIComponent(query)}`
+      : `/api/maps?locatie=${encodeURIComponent(query)}`
+    const resp = await fetch(url)
+    if (!resp.ok) return { km: 0, uren: 0, error: `HTTP-fout bij opzoeken: "${query}"` }
     return await resp.json()
   } catch {
-    return { km: 0, uren: 0 }
+    return { km: 0, uren: 0, error: `Netwerkfout bij opzoeken: "${query}"` }
   }
 }
 
 /**
- * Bereken per klus de toegewezen km en reisuren op basis van de slimme logica:
+ * Bereken per klus de toegewezen km en reisuren op basis van de slimme logica.
+ * Gebruikt de volledige mapsQuery (projectnaam zonder codes) voor Google Maps.
  * - Zelfde locatie op één dag: heenrit bij eerste klus, terugrit bij laatste klus.
  * - Verschillende locaties op één dag: fifty-fifty verdeling tussen opeenvolgende locaties.
  */
 async function berekenSlimmeKilometers(
   klussen: ParsedKlus[],
   onProgress: (msg: string) => void
-): Promise<Map<number, KmAllocation>> {
+): Promise<SlimmeKilometersResult> {
   const allocations = new Map<number, KmAllocation>()
+  const locatieErrors = new Map<string, string>()
   for (let i = 0; i < klussen.length; i++) {
     allocations.set(i, { afstandKm: 0, reisUren: 0 })
   }
 
-  // Verzamel unieke locaties
-  const uniqueLocaties = [...new Set(klussen.map(k => k.locatie).filter(Boolean))] as string[]
+  // Per unieke locatie: gebruik de mapsQuery van de eerste klus op die locatie
+  const mapsQueryPerLocatie = new Map<string, string>()
+  for (const klus of klussen) {
+    if (klus.locatie && !mapsQueryPerLocatie.has(klus.locatie)) {
+      mapsQueryPerLocatie.set(klus.locatie, klus.mapsQuery || klus.locatie)
+    }
+  }
 
-  // Haal Naaldwijk → locatie op (one-way) voor elke unieke locatie
+  // Haal Naaldwijk → locatie op (one-way) voor elke unieke locatie via volledige mapsQuery
+  const uniqueLocaties = [...mapsQueryPerLocatie.keys()]
   onProgress(`Afstanden ophalen voor ${uniqueLocaties.length} locatie(s)...`)
   const naaldwijkData = new Map<string, { km: number; uren: number }>()
   for (const loc of uniqueLocaties) {
-    naaldwijkData.set(loc, await fetchKmNaarLocatie(loc))
+    const query = mapsQueryPerLocatie.get(loc)!
+    onProgress(`Afstand berekenen: ${query}...`)
+    const result = await fetchKm(query)
+    if (result.error) locatieErrors.set(loc, result.error)
+    naaldwijkData.set(loc, result)
   }
 
   // Groepeer klussen per dag (op basis van datum)
-  const dagGroepen = new Map<string, number[]>() // datum → indices in klussen[]
+  const dagGroepen = new Map<string, number[]>()
   for (let i = 0; i < klussen.length; i++) {
     const key = klussen[i].datum || 'onbekend'
     if (!dagGroepen.has(key)) dagGroepen.set(key, [])
@@ -88,6 +97,7 @@ async function berekenSlimmeKilometers(
   }
 
   // Haal tussenliggende afstanden op voor opeenvolgende verschillende locaties op dezelfde dag
+  // Gebruikt de mapsQuery van de respectievelijke locaties als origin/destination
   const tussenData = new Map<string, { km: number; uren: number }>()
   for (const [, indices] of dagGroepen) {
     const locatieReeks: string[] = []
@@ -100,8 +110,14 @@ async function berekenSlimmeKilometers(
     for (let i = 0; i < locatieReeks.length - 1; i++) {
       const paarSleutel = `${locatieReeks[i]}|||${locatieReeks[i + 1]}`
       if (!tussenData.has(paarSleutel)) {
-        onProgress(`Tussenafstand berekenen: ${locatieReeks[i]} → ${locatieReeks[i + 1]}...`)
-        tussenData.set(paarSleutel, await fetchKmTussen(locatieReeks[i], locatieReeks[i + 1]))
+        const originQuery = mapsQueryPerLocatie.get(locatieReeks[i]) || locatieReeks[i]
+        const destQuery = mapsQueryPerLocatie.get(locatieReeks[i + 1]) || locatieReeks[i + 1]
+        onProgress(`Tussenafstand berekenen: ${originQuery} → ${destQuery}...`)
+        const result = await fetchKm(destQuery, originQuery)
+        if (result.error && !locatieErrors.has(locatieReeks[i + 1])) {
+          locatieErrors.set(locatieReeks[i + 1], result.error)
+        }
+        tussenData.set(paarSleutel, result)
       }
     }
   }
@@ -169,7 +185,7 @@ async function berekenSlimmeKilometers(
     }
   }
 
-  return allocations
+  return { allocations, locatieErrors }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -214,7 +230,7 @@ export default function HomePage() {
       setProgressPercent(35)
 
       // Stap 3: Slimme kilometerberekening (per dag gegroepeerd)
-      const allocations = await berekenSlimmeKilometers(
+      const { allocations, locatieErrors } = await berekenSlimmeKilometers(
         parsedKlussen,
         (msg) => setProgress(msg)
       )
@@ -235,7 +251,11 @@ export default function HomePage() {
         }
 
         const { afstandKm, reisUren } = allocations.get(i) ?? { afstandKm: 0, reisUren: 0 }
-        return berekenKlus(parsedKlus, Math.round(afstandKm * 10) / 10, Math.round(reisUren * 100) / 100, uurtarief)
+        const klus = berekenKlus(parsedKlus, Math.round(afstandKm * 10) / 10, Math.round(reisUren * 100) / 100, uurtarief)
+        klus.mapsQuery = parsedKlus.mapsQuery
+        const fout = parsedKlus.locatie ? locatieErrors.get(parsedKlus.locatie) : undefined
+        if (fout) klus.mapsError = fout
+        return klus
       })
 
       setProgressPercent(90)

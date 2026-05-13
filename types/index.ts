@@ -12,6 +12,8 @@ export interface Klus {
   uurtarief: number
   arbeidskosten: number // duur * uurtarief (+ rivgToeslag indien van toepassing)
   rivgToeslag?: number // €5 toeslag wanneer projectNaam "RI-VG" bevat
+  mapsQuery?: string  // volledige projectnaam (zonder codes) voor Google Maps zoekopdracht
+  mapsError?: string  // foutmelding als Google Maps het adres niet kon vinden
   afstandKm: number // allocated km (heen + terug, smart-berekend per dag)
   reiskostenKm: number // afstandKm * 0.50
   reisUren: number // allocated reistijd / 2 (formula doubles for cost)

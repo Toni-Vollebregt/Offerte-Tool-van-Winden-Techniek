@@ -25,6 +25,27 @@ function extractWerkzaamhedenCodes(text: string): string[] {
   return codes
 }
 
+/**
+ * Volledige projectnaam zonder werkzaamheden-codes, geschikt als Google Maps zoekopdracht.
+ * Houdt het leidende prefix (PKG, PG, …) en gebouwcodes (A1, B2) intact.
+ * Bij samengestelde projecten (gescheiden door '/') wordt alleen het eerste deel gebruikt.
+ */
+export function extractMapsQuery(projectTaak: string): string {
+  let text = projectTaak.trim()
+  // Bij samengestelde projecten ("Locatie A / Locatie B") alleen het eerste deel gebruiken
+  const slashIdx = text.indexOf('/')
+  if (slashIdx > 0) text = text.slice(0, slashIdx).trim()
+  // Iteratief trailing werkzaamheden-codes en ExcelAir-notities strippen
+  let prev = ''
+  while (prev !== text) {
+    prev = text
+    text = text.replace(/\s+([A-Z]{1,4}-[A-Z0-9]{1,6}(?:\+[A-Z0-9/]+)?|REM|RT\d+)\s*$/, '').trim()
+    text = text.replace(/\s+\d+x?\b.*$/, '').trim()
+    text = text.replace(/\s+op\s+afstand\s*$/i, '').trim()
+  }
+  return text
+}
+
 function extractLocatie(projectTaak: string): string {
   let text = projectTaak.trim()
   // Strip leading prefix (PG, SG, PKG …)
@@ -71,6 +92,7 @@ function parseLine(line: string): Partial<Klus> | null {
   if (isNaN(duur) || duur <= 0) return null
 
   const locatie = extractLocatie(projectTaak)
+  const mapsQuery = extractMapsQuery(projectTaak)
   const werkzaamhedenCodes = [
     ...new Set([
       ...extractWerkzaamhedenCodes(projectTaak),
@@ -86,6 +108,7 @@ function parseLine(line: string): Partial<Klus> | null {
     duur,
     projectNaam,
     locatie,
+    mapsQuery,
     projectCode,
     werkbonNummer,
     werkzaamhedenOmschrijving: werkzaamheden || projectTaak,

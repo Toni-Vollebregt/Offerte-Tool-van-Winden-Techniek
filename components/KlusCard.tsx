@@ -90,6 +90,21 @@ export default function KlusCard({ klus, onChange, index }: KlusCardProps) {
         </svg>
       </div>
 
+      {/* Waarschuwing: adres niet gevonden door Google Maps */}
+      {localKlus.mapsError && (
+        <div
+          className="px-4 py-2 flex items-start gap-2 text-xs"
+          style={{ backgroundColor: 'rgba(255, 170, 0, 0.1)', borderTop: '1px solid rgba(255, 170, 0, 0.3)' }}
+        >
+          <svg className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: '#FFAA00' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          </svg>
+          <span style={{ color: '#FFAA00' }}>
+            {localKlus.mapsError} — vul km handmatig in
+          </span>
+        </div>
+      )}
+
       {/* Expanded Details */}
       {isExpanded && (
         <div className="px-4 py-4 space-y-4">
