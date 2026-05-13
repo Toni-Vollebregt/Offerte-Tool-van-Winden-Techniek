@@ -15,13 +15,13 @@ import type { Offerte } from '@/types'
 // ─────────────────────────────────────────────────────────────
 const BEDRIJF = {
   naam:    'Van Winden Techniek',
-  straat:  'Straatnaam 00',           // ← invullen
-  pc:      '2671 XX',                 // ← invullen
+  straat:  'Verdilaan 2K',
+  pc:      '2671 VX',
   stad:    'Naaldwijk',
-  tel:     '+31 (0)00 000 0000',      // ← invullen
-  email:   'info@vanwindentechniek.nl', // ← invullen
-  kvk:     '00000000',               // ← invullen
-  btwnr:   'NL000000000B00',         // ← invullen
+  tel:     '06-24690118',
+  email:   'info@vanwinden-techniek.nl',
+  kvk:     '82755280',
+  btwnr:   'NL003725695B69',
   iban:    'NL00 BANK 0000 0000 00', // ← invullen
 }
 
@@ -277,7 +277,7 @@ export default function OfferteDocument({ offerte, logoUrl }: OfferteDocumentPro
         </Text>
         <Text style={styles.intro}>
           Hierbij ontvangt u onze offerte voor de uitgevoerde onderhoudswerkzaamheden in {offerte.maand} {offerte.jaar}.
-          Alle werkzaamheden zijn uitgevoerd conform de overeengekomen kwaliteitsstandaarden.
+          Alle werkzaamheden worden uitgevoerd conform de overeengekomen kwaliteitsstandaarden.
           Reiskosten worden berekend vanuit {BEDRIJF.stad}.
         </Text>
 
@@ -343,7 +343,7 @@ export default function OfferteDocument({ offerte, logoUrl }: OfferteDocumentPro
         {/* Notes */}
         <View style={styles.notes}>
           <Text style={styles.notesText}>
-            Reiskosten berekend vanuit {BEDRIJF.stad} (retour) · Kilometervergoeding: €0,50/km · BTW: 21% · Betalingstermijn: 30 dagen na factuurdatum
+            Reiskosten berekend vanuit {BEDRIJF.stad} (retour) · Kilometervergoeding: €0,50/km · BTW: 21% · Offerte geldig voor 30 dagen
           </Text>
         </View>
 
