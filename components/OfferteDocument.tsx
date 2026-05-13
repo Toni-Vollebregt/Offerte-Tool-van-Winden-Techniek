@@ -401,16 +401,19 @@ export default function OfferteDocument({ offerte, logoUrl }: OfferteDocumentPro
                   {formatEuro(klus.totaal)}
                 </Text>
               </View>
-              {/* Regel 2: berekeningsdetails */}
-              <View style={[{ flexDirection: 'row', paddingHorizontal: 4, paddingBottom: 5, borderBottomWidth: 0.5, borderBottomColor: '#EBEBEB' }]}>
+              {/* Regel 2: kostenspecificatie */}
+              <View style={{ flexDirection: 'row', paddingHorizontal: 4, paddingBottom: 5, borderBottomWidth: 0.5, borderBottomColor: '#EBEBEB' }}>
                 <View style={styles.d_indent} />
-                <Text style={styles.detailText}>
-                  Arbeid: {formatNL(klus.duur)} u × {formatEuro(klus.uurtarief)}/u = {formatEuro(klus.arbeidskosten)}
-                  {'   ·   '}
-                  Km-vergoeding: {formatNL(klus.afstandKm, 0)} km × €0,50 = {formatEuro(klus.reiskostenKm)}
-                  {'   ·   '}
-                  Reiskosten: {formatEuro(klus.reiskostenUur)}
-                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.detailText}>
+                    Arbeidsuren: {formatNL(klus.duur)} u
+                    {'   ·   '}
+                    Kilometers: {formatNL(klus.afstandKm, 0)} km
+                    {'   ·   '}
+                    Reistijd: {formatNL(klus.reisUren * 2, 2)} u
+                    {klus.rivgToeslag ? `   ·   Schoonmaak en Diversen: ${formatEuro(klus.rivgToeslag)}` : ''}
+                  </Text>
+                </View>
               </View>
             </View>
           ))}

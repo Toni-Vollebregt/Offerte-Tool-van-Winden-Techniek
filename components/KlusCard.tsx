@@ -25,7 +25,7 @@ export default function KlusCard({ klus, onChange, index }: KlusCardProps) {
     if (field === 'duur' || field === 'uurtarief') {
       const duur = field === 'duur' ? Number(value) : updated.duur
       const uurtarief = field === 'uurtarief' ? Number(value) : updated.uurtarief
-      updated.arbeidskosten = Math.round(duur * uurtarief * 100) / 100
+      updated.arbeidskosten = Math.round((duur * uurtarief + (updated.rivgToeslag ?? 0)) * 100) / 100
     }
 
     if (field === 'afstandKm') {
@@ -147,7 +147,7 @@ export default function KlusCard({ klus, onChange, index }: KlusCardProps) {
 
             {/* Afstand km */}
             <div className="space-y-1">
-              <label className="text-xs font-medium" style={labelStyle}>Afstand (km v/v)</label>
+              <label className="text-xs font-medium" style={labelStyle}>Afstand (km)</label>
               <input
                 type="number"
                 step="1"
@@ -183,6 +183,9 @@ export default function KlusCard({ klus, onChange, index }: KlusCardProps) {
               <p style={labelStyle} className="text-xs">Arbeidskosten</p>
               <p className="text-white font-medium">{formatCurrency(localKlus.arbeidskosten)}</p>
               <p style={{ color: '#6D6D6D' }} className="text-xs">{formatNumber(localKlus.duur)} u &times; {formatCurrency(localKlus.uurtarief)}</p>
+              {localKlus.rivgToeslag ? (
+                <p style={{ color: '#00E8FF' }} className="text-xs">+ RI-VG toeslag {formatCurrency(localKlus.rivgToeslag)}</p>
+              ) : null}
             </div>
             <div>
               <p style={labelStyle} className="text-xs">Kilometervergoeding</p>

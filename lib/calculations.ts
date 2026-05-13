@@ -11,7 +11,9 @@ export function berekenKlus(
   uurtarief: number
 ): Klus {
   const duur = klus.duur ?? 0
-  const arbeidskosten = Math.round(duur * uurtarief * 100) / 100
+  const projectNaam = klus.projectNaam ?? ''
+  const rivgToeslag = /ri-vg/i.test(projectNaam) ? 5 : 0
+  const arbeidskosten = Math.round((duur * uurtarief + rivgToeslag) * 100) / 100
   const reiskostenKm = Math.round(afstandKm * KM_TARIEF * 100) / 100
   const reiskostenUur = Math.round(reisUren * 2 * REIS_UUR_TARIEF * FILEMARGE * 100) / 100
   const totaal = Math.round((arbeidskosten + reiskostenKm + reiskostenUur) * 100) / 100
@@ -21,7 +23,7 @@ export function berekenKlus(
     dag: klus.dag ?? '',
     datum: klus.datum ?? '',
     duur,
-    projectNaam: klus.projectNaam ?? '',
+    projectNaam,
     locatie: klus.locatie ?? '',
     projectCode: klus.projectCode ?? '',
     werkbonNummer: klus.werkbonNummer ?? '',
@@ -29,6 +31,7 @@ export function berekenKlus(
     werkzaamhedenCodes: klus.werkzaamhedenCodes ?? [],
     uurtarief,
     arbeidskosten,
+    rivgToeslag: rivgToeslag > 0 ? rivgToeslag : undefined,
     afstandKm,
     reiskostenKm,
     reisUren,

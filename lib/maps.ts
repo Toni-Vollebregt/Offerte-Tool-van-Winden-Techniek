@@ -1,14 +1,14 @@
 import axios from 'axios'
 
-const ORIGIN = 'Naaldwijk, Zuid-Holland, Nederland'
+const NAALDWIJK = 'Naaldwijk, Zuid-Holland, Nederland'
 const GOOGLE_MAPS_BASE = 'https://maps.googleapis.com/maps/api/distancematrix/json'
 
 export interface AfstandEnTijd {
-  km: number
-  uren: number
+  km: number  // one-way km
+  uren: number // one-way travel time in hours
 }
 
-export async function getAfstandEnTijd(bestemming: string): Promise<AfstandEnTijd> {
+async function fetchAfstandEnTijd(origin: string, destination: string): Promise<AfstandEnTijd> {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY
 
   if (!apiKey) {
@@ -19,8 +19,8 @@ export async function getAfstandEnTijd(bestemming: string): Promise<AfstandEnTij
   try {
     const response = await axios.get(GOOGLE_MAPS_BASE, {
       params: {
-        origins: ORIGIN,
-        destinations: bestemming,
+        origins: origin,
+        destinations: destination,
         mode: 'driving',
         language: 'nl',
         key: apiKey,
@@ -42,21 +42,22 @@ export async function getAfstandEnTijd(bestemming: string): Promise<AfstandEnTij
       return { km: 0, uren: 0 }
     }
 
-    // Distance in meters, convert to km, round trip (x2)
-    const distanceMeters = element.distance.value
-    const kmOneWay = distanceMeters / 1000
-    const kmRoundTrip = Math.round(kmOneWay * 2 * 10) / 10
+    const kmOneWay = Math.round((element.distance.value / 1000) * 10) / 10
+    const urenOneWay = Math.round((element.duration.value / 3600) * 100) / 100
 
-    // Duration in seconds, convert to hours (one way)
-    const durationSeconds = element.duration.value
-    const urenOneWay = Math.round((durationSeconds / 3600) * 100) / 100
-
-    return {
-      km: kmRoundTrip,
-      uren: urenOneWay,
-    }
+    return { km: kmOneWay, uren: urenOneWay }
   } catch (error) {
     console.error('Error calling Google Maps API:', error)
     return { km: 0, uren: 0 }
   }
+}
+
+/** Afstand en reistijd van Naaldwijk naar bestemming (one-way). */
+export async function getAfstandEnTijd(bestemming: string): Promise<AfstandEnTijd> {
+  return fetchAfstandEnTijd(NAALDWIJK, bestemming)
+}
+
+/** Afstand en reistijd van een willekeurige origin naar destination (one-way). */
+export async function getAfstandEnTijdVanNaar(origin: string, destination: string): Promise<AfstandEnTijd> {
+  return fetchAfstandEnTijd(origin, destination)
 }

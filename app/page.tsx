@@ -13,6 +13,167 @@ const MAANDEN = [
   'juli', 'augustus', 'september', 'oktober', 'november', 'december',
 ]
 
+// ─── Helpers voor slimme kilometerberekening ───────────────────────────────
+
+interface ParsedKlus {
+  id?: string
+  dag?: string
+  datum?: string
+  duur?: number
+  projectNaam?: string
+  locatie?: string
+  projectCode?: string
+  werkbonNummer?: string
+  werkzaamhedenOmschrijving?: string
+  werkzaamhedenCodes?: string[]
+}
+
+interface KmAllocation {
+  afstandKm: number   // totaal toegewezen km (heen + terug via smart-logica)
+  reisUren: number    // allocatedTime / 2 (formule verdubbelt: × 2 × €55 × 1.15)
+}
+
+async function fetchKmNaarLocatie(locatie: string): Promise<{ km: number; uren: number }> {
+  try {
+    const resp = await fetch(`/api/maps?locatie=${encodeURIComponent(locatie)}`)
+    if (!resp.ok) return { km: 0, uren: 0 }
+    return await resp.json()
+  } catch {
+    return { km: 0, uren: 0 }
+  }
+}
+
+async function fetchKmTussen(origin: string, destination: string): Promise<{ km: number; uren: number }> {
+  try {
+    const resp = await fetch(
+      `/api/maps?origin=${encodeURIComponent(origin)}&locatie=${encodeURIComponent(destination)}`
+    )
+    if (!resp.ok) return { km: 0, uren: 0 }
+    return await resp.json()
+  } catch {
+    return { km: 0, uren: 0 }
+  }
+}
+
+/**
+ * Bereken per klus de toegewezen km en reisuren op basis van de slimme logica:
+ * - Zelfde locatie op één dag: heenrit bij eerste klus, terugrit bij laatste klus.
+ * - Verschillende locaties op één dag: fifty-fifty verdeling tussen opeenvolgende locaties.
+ */
+async function berekenSlimmeKilometers(
+  klussen: ParsedKlus[],
+  onProgress: (msg: string) => void
+): Promise<Map<number, KmAllocation>> {
+  const allocations = new Map<number, KmAllocation>()
+  for (let i = 0; i < klussen.length; i++) {
+    allocations.set(i, { afstandKm: 0, reisUren: 0 })
+  }
+
+  // Verzamel unieke locaties
+  const uniqueLocaties = [...new Set(klussen.map(k => k.locatie).filter(Boolean))] as string[]
+
+  // Haal Naaldwijk → locatie op (one-way) voor elke unieke locatie
+  onProgress(`Afstanden ophalen voor ${uniqueLocaties.length} locatie(s)...`)
+  const naaldwijkData = new Map<string, { km: number; uren: number }>()
+  for (const loc of uniqueLocaties) {
+    naaldwijkData.set(loc, await fetchKmNaarLocatie(loc))
+  }
+
+  // Groepeer klussen per dag (op basis van datum)
+  const dagGroepen = new Map<string, number[]>() // datum → indices in klussen[]
+  for (let i = 0; i < klussen.length; i++) {
+    const key = klussen[i].datum || 'onbekend'
+    if (!dagGroepen.has(key)) dagGroepen.set(key, [])
+    dagGroepen.get(key)!.push(i)
+  }
+
+  // Haal tussenliggende afstanden op voor opeenvolgende verschillende locaties op dezelfde dag
+  const tussenData = new Map<string, { km: number; uren: number }>()
+  for (const [, indices] of dagGroepen) {
+    const locatieReeks: string[] = []
+    for (const idx of indices) {
+      const loc = klussen[idx].locatie
+      if (loc && (locatieReeks.length === 0 || locatieReeks[locatieReeks.length - 1] !== loc)) {
+        locatieReeks.push(loc)
+      }
+    }
+    for (let i = 0; i < locatieReeks.length - 1; i++) {
+      const paarSleutel = `${locatieReeks[i]}|||${locatieReeks[i + 1]}`
+      if (!tussenData.has(paarSleutel)) {
+        onProgress(`Tussenafstand berekenen: ${locatieReeks[i]} → ${locatieReeks[i + 1]}...`)
+        tussenData.set(paarSleutel, await fetchKmTussen(locatieReeks[i], locatieReeks[i + 1]))
+      }
+    }
+  }
+
+  // Ken km/uren toe per klus per dag
+  for (const [, indices] of dagGroepen) {
+    // Bouw locatiegroepen: aaneengesloten klussen op dezelfde locatie
+    const groepen: { locatie: string; indices: number[] }[] = []
+    for (const idx of indices) {
+      const loc = klussen[idx].locatie || ''
+      if (groepen.length === 0 || groepen[groepen.length - 1].locatie !== loc) {
+        groepen.push({ locatie: loc, indices: [idx] })
+      } else {
+        groepen[groepen.length - 1].indices.push(idx)
+      }
+    }
+
+    for (let gi = 0; gi < groepen.length; gi++) {
+      const groep = groepen[gi]
+      const eersteIdx = groep.indices[0]
+      const laatsteIdx = groep.indices[groep.indices.length - 1]
+      const loc = groep.locatie
+
+      // Heenrit-toewijzing aan de eerste klus van deze groep
+      if (gi === 0) {
+        // Eerste groep van de dag: volledige heenrit vanuit Naaldwijk
+        const data = loc ? (naaldwijkData.get(loc) ?? { km: 0, uren: 0 }) : { km: 0, uren: 0 }
+        const cur = allocations.get(eersteIdx)!
+        allocations.set(eersteIdx, {
+          afstandKm: cur.afstandKm + data.km,
+          reisUren: cur.reisUren + data.uren / 2,
+        })
+      } else {
+        // Niet eerste groep: helft van de afstand van vorige locatie naar deze locatie
+        const vorigeLoc = groepen[gi - 1].locatie
+        const paarSleutel = `${vorigeLoc}|||${loc}`
+        const data = loc && vorigeLoc ? (tussenData.get(paarSleutel) ?? { km: 0, uren: 0 }) : { km: 0, uren: 0 }
+        const cur = allocations.get(eersteIdx)!
+        allocations.set(eersteIdx, {
+          afstandKm: cur.afstandKm + data.km / 2,
+          reisUren: cur.reisUren + data.uren / 4,
+        })
+      }
+
+      // Terugrit-toewijzing aan de laatste klus van deze groep
+      if (gi === groepen.length - 1) {
+        // Laatste groep van de dag: volledige terugrit naar Naaldwijk
+        const data = loc ? (naaldwijkData.get(loc) ?? { km: 0, uren: 0 }) : { km: 0, uren: 0 }
+        const cur = allocations.get(laatsteIdx)!
+        allocations.set(laatsteIdx, {
+          afstandKm: cur.afstandKm + data.km,
+          reisUren: cur.reisUren + data.uren / 2,
+        })
+      } else {
+        // Niet laatste groep: helft van de afstand van deze locatie naar volgende locatie
+        const volgendeLoc = groepen[gi + 1].locatie
+        const paarSleutel = `${loc}|||${volgendeLoc}`
+        const data = loc && volgendeLoc ? (tussenData.get(paarSleutel) ?? { km: 0, uren: 0 }) : { km: 0, uren: 0 }
+        const cur = allocations.get(laatsteIdx)!
+        allocations.set(laatsteIdx, {
+          afstandKm: cur.afstandKm + data.km / 2,
+          reisUren: cur.reisUren + data.uren / 4,
+        })
+      }
+    }
+  }
+
+  return allocations
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+
 export default function HomePage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
@@ -27,7 +188,7 @@ export default function HomePage() {
     setProgressPercent(10)
 
     try {
-      // Step 1: Parse PDF
+      // Stap 1: PDF parsen
       const formData = new FormData()
       formData.append('file', file)
 
@@ -41,71 +202,48 @@ export default function HomePage() {
         throw new Error(err.error || 'Fout bij verwerken van PDF')
       }
 
-      const { klussen: parsedKlussen } = await parseResponse.json()
+      const { klussen: parsedKlussen } = await parseResponse.json() as { klussen: ParsedKlus[] }
       setProgress(`${parsedKlussen.length} klussen gevonden. Tarieven ophalen...`)
       setProgressPercent(25)
 
-      // Step 2: Fetch tarieven
+      // Stap 2: Tarieven ophalen
       const tarievenResponse = await fetch('/api/tarieven')
       const tarieven: Tarief[] = await tarievenResponse.json()
 
       setProgress('Afstanden berekenen via Google Maps...')
       setProgressPercent(35)
 
-      // Step 3: Get distances for each klus
-      const klussen: Klus[] = []
-      const total = parsedKlussen.length
+      // Stap 3: Slimme kilometerberekening (per dag gegroepeerd)
+      const allocations = await berekenSlimmeKilometers(
+        parsedKlussen,
+        (msg) => setProgress(msg)
+      )
 
-      for (let i = 0; i < total; i++) {
-        const parsedKlus = parsedKlussen[i]
-        const progressPct = 35 + Math.round(((i + 1) / total) * 50)
-        setProgress(`Afstand berekenen: ${parsedKlus.locatie} (${i + 1}/${total})...`)
-        setProgressPercent(progressPct)
+      setProgress('Offerte samenstellen...')
+      setProgressPercent(85)
 
-        // Get distance
-        let afstandKm = 0
-        let reisUren = 0
-
-        if (parsedKlus.locatie) {
-          try {
-            const mapsResponse = await fetch(
-              `/api/maps?locatie=${encodeURIComponent(parsedKlus.locatie)}`
-            )
-            if (mapsResponse.ok) {
-              const mapsData = await mapsResponse.json()
-              afstandKm = mapsData.km || 0
-              reisUren = mapsData.uren || 0
-            }
-          } catch {
-            // Fallback to 0
-          }
-        }
-
-        // Determine uurtarief based on werkzaamheden codes
-        let uurtarief = 60 // default
+      // Stap 4: Klussen opbouwen met tarieven en allocaties
+      const klussen: Klus[] = parsedKlussen.map((parsedKlus, i) => {
+        let uurtarief = 60
         if (parsedKlus.werkzaamhedenCodes && parsedKlus.werkzaamhedenCodes.length > 0) {
           const matchedTarieven = (parsedKlus.werkzaamhedenCodes as string[])
             .map((code: string) => tarieven.find(t => t.code === code))
             .filter(Boolean) as Tarief[]
-
           if (matchedTarieven.length > 0) {
-            // Use highest tarief when multiple codes
             uurtarief = Math.max(...matchedTarieven.map(t => t.uurtarief))
           }
         }
 
-        const klus = berekenKlus(parsedKlus, afstandKm, reisUren, uurtarief)
-        klussen.push(klus)
-      }
+        const { afstandKm, reisUren } = allocations.get(i) ?? { afstandKm: 0, reisUren: 0 }
+        return berekenKlus(parsedKlus, Math.round(afstandKm * 10) / 10, Math.round(reisUren * 100) / 100, uurtarief)
+      })
 
-      setProgress('Offerte samenstellen...')
       setProgressPercent(90)
 
-      // Step 4: Build offerte
+      // Stap 5: Offerte opbouwen
       const now = new Date()
       const jaar = now.getFullYear()
 
-      // Try to extract month from first klus datum
       let maand = MAANDEN[now.getMonth()]
       if (klussen.length > 0 && klussen[0].datum) {
         const datumParts = klussen[0].datum.split('-')
@@ -133,13 +271,11 @@ export default function HomePage() {
         aangemaakt: new Date().toISOString(),
       }
 
-      // Store in sessionStorage
       sessionStorage.setItem('offerte', JSON.stringify(offerte))
 
       setProgressPercent(100)
       setProgress('Gereed!')
 
-      // Navigate to review
       setTimeout(() => {
         router.push('/review')
       }, 300)
@@ -221,7 +357,7 @@ export default function HomePage() {
                   >
                     2
                   </span>
-                  <span>Werklocaties worden herkend en afstanden via Google Maps berekend vanuit Naaldwijk</span>
+                  <span>Werklocaties worden herkend en afstanden slim berekend via Google Maps (gedeeld per dag)</span>
                 </li>
                 <li className="flex gap-3">
                   <span

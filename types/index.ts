@@ -10,11 +10,12 @@ export interface Klus {
   werkzaamhedenOmschrijving: string
   werkzaamhedenCodes: string[] // parsed codes like ['O-G']
   uurtarief: number
-  arbeidskosten: number // duur * uurtarief
-  afstandKm: number // round trip from Naaldwijk
+  arbeidskosten: number // duur * uurtarief (+ rivgToeslag indien van toepassing)
+  rivgToeslag?: number // €5 toeslag wanneer projectNaam "RI-VG" bevat
+  afstandKm: number // allocated km (heen + terug, smart-berekend per dag)
   reiskostenKm: number // afstandKm * 0.50
-  reisUren: number // travel time hours
-  reiskostenUur: number // reisUren * 55
+  reisUren: number // allocated reistijd / 2 (formula doubles for cost)
+  reiskostenUur: number // reisUren * 2 * 55 * 1.15
   totaal: number
 }
 
