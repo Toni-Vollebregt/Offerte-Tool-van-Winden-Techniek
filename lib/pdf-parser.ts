@@ -35,13 +35,15 @@ export function extractMapsQuery(projectTaak: string): string {
   let prev = ''
   while (prev !== text) {
     prev = text
+    // Strip trailing opmerkingen tussen haakjes, bijv. "(LPG detectie vervallen)"
+    text = text.replace(/\s*\([^)]*\)\s*$/, '').trim()
     // Strip "CODE/ rest" — ExcelAir schrijft meerdere gebouwen als "RI-VG/ Gebouw B ..."
     // De "/" zit vast aan de code; alles daarna is een beschrijving van een ander gebouw
     text = text.replace(/\s+[A-Z]{1,4}-[A-Z0-9]{1,6}(?:\+[A-Z0-9/]+)?\/.*$/, '').trim()
     // Strip trailing werkzaamheden-codes: O-G, O-RGB, I-RB, RI-VG, RT350, REM
     text = text.replace(/\s+([A-Z]{1,4}-[A-Z0-9]{1,6}(?:\+[A-Z0-9/]+)?|REM|RT\d+)\s*$/, '').trim()
-    // Strip trailing ExcelAir-notities zoals "1x op afstand", "op afstand", "2x per jaar"
-    text = text.replace(/\s+\d+x?\b.*$/, '').trim()
+    // Strip trailing ExcelAir-notities zoals "1x op afstand", "2x per jaar" — x is verplicht
+    text = text.replace(/\s+\d+x\b.*$/, '').trim()
     text = text.replace(/\s+op\s+afstand\s*$/i, '').trim()
   }
   return text
@@ -54,14 +56,16 @@ function extractLocatie(projectTaak: string): string {
   let prev = ''
   while (prev !== text) {
     prev = text
+    // Strip trailing opmerkingen tussen haakjes, bijv. "(LPG detectie vervallen)"
+    text = text.replace(/\s*\([^)]*\)\s*$/, '').trim()
     // Strip "CODE/ rest" — zelfde patroon als extractMapsQuery
     text = text.replace(/\s+[A-Z]{1,4}-[A-Z0-9]{1,6}(?:\+[A-Z0-9/]+)?\/.*$/, '').trim()
     // Strip trailing werkzaamheden-codes
     text = text.replace(/\s+([A-Z]{1,4}-[A-Z0-9]{1,6}(?:\+[A-Z0-9/]+)?|REM|RT\d+)\s*$/, '').trim()
     // Strip trailing all-uppercase tokens die op codes lijken
     text = text.replace(/\s+[A-Z][A-Z0-9]{1,6}\s*$/, '').trim()
-    // Strip trailing ExcelAir-notities zoals "1x op afstand", "2x per jaar"
-    text = text.replace(/\s+\d+x?\b.*$/, '').trim()
+    // Strip trailing ExcelAir-notities zoals "1x op afstand", "2x per jaar" — x is verplicht
+    text = text.replace(/\s+\d+x\b.*$/, '').trim()
   }
   // Strip standalone gebouwcodes zoals A1, B2 die Google Maps naar snelwegen sturen
   text = text.replace(/\b[A-Z]\d{1,2}\b/g, '').replace(/\s{2,}/g, ' ').trim()
