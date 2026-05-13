@@ -127,8 +127,12 @@ async function berekenSlimmeKilometers(
         const destQuery = mapsQueryPerLocatie.get(locatieReeks[i + 1]) || locatieReeks[i + 1]
         onProgress(`Tussenafstand berekenen: ${originQuery} → ${destQuery}...`)
         const result = await fetchKm(destQuery, originQuery)
-        if (result.error && !locatieErrors.has(locatieReeks[i + 1])) {
-          locatieErrors.set(locatieReeks[i + 1], result.error)
+
+        if ((result.km === 0 || result.error) && !locatieErrors.has(locatieReeks[i + 1])) {
+          locatieErrors.set(
+            locatieReeks[i + 1],
+            result.error ?? `Tussenafstand is 0 km (${originQuery} → ${destQuery}) — controleer handmatig`
+          )
         }
         tussenData.set(paarSleutel, result)
       }
