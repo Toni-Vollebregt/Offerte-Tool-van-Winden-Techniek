@@ -40,6 +40,9 @@ function extractLocatie(projectTaak: string): string {
     // Strip trailing ExcelAir notes like "1x op afstand", "2x per jaar"
     text = text.replace(/\s+\d+x?\b.*$/, '').trim()
   }
+  // Strip standalone building/area codes like A1, B2, C12 (e.g. "Van Dorp A1 Rotterdam" → "Van Dorp Rotterdam")
+  // These codes confuse Google Maps into finding highway A1/A2/etc. instead of the actual city
+  text = text.replace(/\b[A-Z]\d{1,2}\b/g, '').replace(/\s{2,}/g, ' ').trim()
   return text
 }
 
