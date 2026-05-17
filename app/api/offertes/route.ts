@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET() {
+export const dynamic = 'force-dynamic'
+
+async function getSupabase() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!supabaseUrl || !supabaseKey || supabaseUrl === 'your_supabase_url') return null
+  const { createClient } = await import('@supabase/supabase-js')
+  return createClient(supabaseUrl, supabaseKey)
+}
 
-  if (!supabaseUrl || !supabaseKey || supabaseUrl === 'your_supabase_url') {
-    return NextResponse.json([])
-  }
+export async function GET() {
+  const supabase = await getSupabase()
+  if (!supabase) return NextResponse.json([])
 
   try {
-    const { createClient } = await import('@supabase/supabase-js')
-    const supabase = createClient(supabaseUrl, supabaseKey)
-
     const { data, error } = await supabase
       .from('offertes')
       .select('*')
@@ -20,22 +23,17 @@ export async function GET() {
     if (error) throw error
     return NextResponse.json(data || [])
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    console.error('Offertes GET error:', err)
+    return NextResponse.json({ error: 'Ophalen mislukt.' }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (!supabaseUrl || !supabaseKey || supabaseUrl === 'your_supabase_url') {
-    return NextResponse.json({ error: 'Supabase not configured' }, { status: 503 })
-  }
+  const supabase = await getSupabase()
+  if (!supabase) return NextResponse.json({ error: 'Supabase niet geconfigureerd.' }, { status: 503 })
 
   try {
     const body = await request.json()
-    const { createClient } = await import('@supabase/supabase-js')
-    const supabase = createClient(supabaseUrl, supabaseKey)
 
     const { data, error } = await supabase
       .from('offertes')
@@ -50,6 +48,30 @@ export async function POST(request: NextRequest) {
     if (error) throw error
     return NextResponse.json(data?.[0] || {})
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    console.error('Offertes POST error:', err)
+    return NextResponse.json({ error: 'Opslaan mislukt.' }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const url = new URL(request.url)
+  const id = url.searchParams.get('id')
+
+  if (!id) return NextResponse.json({ error: 'ID ontbreekt.' }, { status: 400 })
+
+  const supabase = await getSupabase()
+  if (!supabase) return NextResponse.json({ error: 'Supabase niet geconfigureerd.' }, { status: 503 })
+
+  try {
+    const { error } = await supabase
+      .from('offertes')
+      .delete()
+      .eq('id', id)
+
+    if (error) throw error
+    return NextResponse.json({ success: true })
+  } catch (err) {
+    console.error('Offerte DELETE error:', err)
+    return NextResponse.json({ error: 'Verwijderen mislukt.' }, { status: 500 })
   }
 }
