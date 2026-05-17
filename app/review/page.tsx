@@ -1,18 +1,31 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Header from '@/components/Header'
 import StepIndicator from '@/components/StepIndicator'
 import KlusCard from '@/components/KlusCard'
-import type { Klus, Offerte } from '@/types'
-import { berekenOfferteTotalen, formatCurrency, formatNumber } from '@/lib/calculations'
+import type { Klus, Offerte, Tarief } from '@/types'
+import { berekenKlus, berekenOfferteTotalen, formatCurrency, formatNumber } from '@/lib/calculations'
+
+async function fetchKm(query: string): Promise<{ km: number; uren: number; error?: string }> {
+  try {
+    const resp = await fetch(`/api/maps?locatie=${encodeURIComponent(query)}`)
+    if (!resp.ok) return { km: 0, uren: 0, error: `HTTP-fout bij opzoeken: "${query}"` }
+    return await resp.json()
+  } catch {
+    return { km: 0, uren: 0, error: `Netwerkfout bij opzoeken: "${query}"` }
+  }
+}
 
 export default function ReviewPage() {
   const router = useRouter()
   const [offerte, setOfferte] = useState<Offerte | null>(null)
   const [klussen, setKlussen] = useState<Klus[]>([])
   const [isSaving, setIsSaving] = useState(false)
+  const [isAddingProject, setIsAddingProject] = useState(false)
+  const [addProjectError, setAddProjectError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const stored = sessionStorage.getItem('offerte')
@@ -30,6 +43,68 @@ export default function ReviewPage() {
   }, [])
 
   const totalen = berekenOfferteTotalen(klussen)
+
+  const handleProjectFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+
+    setIsAddingProject(true)
+    setAddProjectError('')
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const parseResponse = await fetch('/api/parse-project', {
+        method: 'POST',
+        body: formData,
+      })
+      if (!parseResponse.ok) {
+        const err = await parseResponse.json()
+        setAddProjectError(err.error ?? 'Fout bij verwerken van project PDF.')
+        return
+      }
+      const { klus: parsedKlus } = await parseResponse.json() as { klus: Partial<Klus> }
+
+      const tarievenResponse = await fetch('/api/tarieven')
+      const tarieven: Tarief[] = await tarievenResponse.json()
+
+      let uurtarief = 60
+      if (parsedKlus.werkzaamhedenCodes && parsedKlus.werkzaamhedenCodes.length > 0) {
+        const matchedTarieven = parsedKlus.werkzaamhedenCodes
+          .map(code => tarieven.find(t => t.code === code))
+          .filter(Boolean) as Tarief[]
+        if (matchedTarieven.length > 0) {
+          uurtarief = Math.max(...matchedTarieven.map(t => t.uurtarief))
+        }
+      }
+
+      let afstandKm = 0
+      let reisUren = 0
+      let mapsError: string | undefined
+      const mapsTarget = parsedKlus.mapsQuery || parsedKlus.locatie
+      if (mapsTarget) {
+        const result = await fetchKm(mapsTarget)
+        if (result.error) {
+          mapsError = result.error
+        } else {
+          afstandKm = Math.round(result.km * 2 * 10) / 10
+          reisUren = Math.round(result.uren * 100) / 100
+        }
+      }
+
+      const klus = berekenKlus(parsedKlus, afstandKm, reisUren, uurtarief)
+      if (parsedKlus.mapsQuery) klus.mapsQuery = parsedKlus.mapsQuery
+      if (mapsError) klus.mapsError = mapsError
+
+      setKlussen(prev => [...prev, klus])
+    } catch {
+      setAddProjectError('Verbindingsfout — probeer opnieuw.')
+    } finally {
+      setIsAddingProject(false)
+    }
+  }
 
   const handleDoorgaan = () => {
     if (!offerte) return
@@ -123,6 +198,28 @@ export default function ReviewPage() {
                 index={index}
               />
             ))}
+          </div>
+
+          {/* Los project toevoegen */}
+          <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf"
+              className="hidden"
+              onChange={handleProjectFileChange}
+            />
+            {addProjectError && (
+              <p className="text-xs mb-2" style={{ color: '#FF5050' }}>{addProjectError}</p>
+            )}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isAddingProject}
+              className="w-full py-2.5 px-4 rounded-xl text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+              style={{ backgroundColor: '#3D3D3D', color: '#9D9D9D', border: '1px solid #4D4D4D' }}
+            >
+              {isAddingProject ? 'Project inlezen...' : '+ Voeg los project toe'}
+            </button>
           </div>
 
           {/* Bottom summary + action */}

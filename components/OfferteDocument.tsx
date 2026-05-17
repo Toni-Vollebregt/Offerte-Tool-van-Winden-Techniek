@@ -22,7 +22,6 @@ const BEDRIJF = {
   email:   'info@vanwinden-techniek.nl',
   kvk:     '82755280',
   btwnr:   'NL003725695B69',
-  iban:    'NL00 BANK 0000 0000 00', // ← invullen
 }
 
 const styles = StyleSheet.create({
@@ -253,8 +252,7 @@ export default function OfferteDocument({ offerte, logoUrl }: OfferteDocumentPro
               Datum: {today}{'\n'}
               Periode: {offerte.maand} {offerte.jaar}{'\n'}
               KvK: {BEDRIJF.kvk}{'\n'}
-              BTW-nr: {BEDRIJF.btwnr}{'\n'}
-              IBAN: {BEDRIJF.iban}
+              BTW-nr: {BEDRIJF.btwnr}
             </Text>
             <View style={styles.badge}>
               <Text>{offerte.klussen.length} werkbonnen</Text>
