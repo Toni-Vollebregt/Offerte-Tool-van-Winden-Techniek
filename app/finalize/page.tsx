@@ -30,6 +30,9 @@ export default function FinalizePage() {
   const [isSaving, setIsSaving] = useState(false)
   const [savedId, setSavedId] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [isSendingSnelstart, setIsSendingSnelstart] = useState(false)
+  const [snelstartOffertenummer, setSnelstartOffertenummer] = useState<number | null>(null)
+  const [snelstartError, setSnelstartError] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(false)
 
   useEffect(() => {
@@ -65,6 +68,33 @@ export default function FinalizePage() {
       setSaveError(err instanceof Error ? err.message : 'Onbekende fout')
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleSendSnelstart = async () => {
+    if (!offerte) return
+    setIsSendingSnelstart(true)
+    setSnelstartError(null)
+
+    try {
+      const response = await fetch('/api/snelstart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ offerte }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setSnelstartError(data.error ?? 'Versturen naar Snelstart mislukt.')
+        return
+      }
+
+      setSnelstartOffertenummer(data.offertenummer)
+    } catch {
+      setSnelstartError('Verbindingsfout — probeer opnieuw.')
+    } finally {
+      setIsSendingSnelstart(false)
     }
   }
 
@@ -226,33 +256,66 @@ export default function FinalizePage() {
               )}
             </div>
 
-            {/* Snelstart (disabled) */}
+            {/* Snelstart */}
             <div
-              className="rounded-xl p-5 flex flex-col gap-4 opacity-60"
+              className="rounded-xl p-5 flex flex-col gap-4"
               style={{ backgroundColor: '#3D3D3D' }}
             >
               <div className="flex items-center gap-3">
                 <div
                   className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}
+                  style={{ backgroundColor: 'rgba(0, 85, 255, 0.1)' }}
                 >
-                  <svg className="w-5 h-5" style={{ color: '#6D6D6D' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-5 h-5" style={{ color: '#0055FF' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
                 <div>
-                  <p style={{ color: '#6D6D6D' }} className="font-semibold text-sm">Versturen naar Snelstart</p>
-                  <p style={{ color: '#4D4D4D' }} className="text-xs">Boekhoudkoppeling</p>
+                  <p className="text-white font-semibold text-sm">Versturen naar Snelstart</p>
+                  <p style={{ color: '#9D9D9D' }} className="text-xs">Offerte aanmaken in boekhoudpakket</p>
                 </div>
               </div>
 
-              <button
-                disabled
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm cursor-not-allowed"
-                style={{ backgroundColor: '#2D2D2D', color: '#6D6D6D' }}
-              >
-                Komt binnenkort
-              </button>
+              {snelstartOffertenummer ? (
+                <div
+                  className="w-full flex flex-col items-center justify-center gap-1 px-4 py-3 rounded-lg text-sm"
+                  style={{ backgroundColor: 'rgba(0, 232, 255, 0.1)', color: '#00E8FF' }}
+                >
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Aangemaakt in Snelstart
+                  </div>
+                  <p className="text-xs font-mono" style={{ color: '#9D9D9D' }}>
+                    Offertenummer: {snelstartOffertenummer}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={handleSendSnelstart}
+                    disabled={isSendingSnelstart}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 disabled:opacity-50"
+                    style={{ backgroundColor: '#4D4D4D', color: '#ffffff' }}
+                  >
+                    {isSendingSnelstart ? (
+                      <>
+                        <div
+                          className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin"
+                          style={{ borderColor: '#fff', borderTopColor: 'transparent' }}
+                        />
+                        Versturen...
+                      </>
+                    ) : (
+                      'Versturen naar Snelstart'
+                    )}
+                  </button>
+                  {snelstartError && (
+                    <p className="text-xs" style={{ color: '#FF4444' }}>{snelstartError}</p>
+                  )}
+                </>
+              )}
             </div>
           </div>
 

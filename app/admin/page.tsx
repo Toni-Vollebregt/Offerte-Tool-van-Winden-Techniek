@@ -17,7 +17,8 @@ export default function AdminPage() {
     uurtarief: 0,
   })
   const [newTarief, setNewTarief] = useState({ code: '', omschrijving: '', uurtarief: 60 })
-  const [saveMessage, setSaveMessage] = useState('')
+  const [saveError, setSaveError] = useState('')
+  const [saveSuccess, setSaveSuccess] = useState('')
 
   const fetchTarieven = async () => {
     setIsLoading(true)
@@ -26,7 +27,7 @@ export default function AdminPage() {
       const data = await response.json()
       setTarieven(data)
     } catch {
-      setSaveMessage('Fout bij ophalen tarieven')
+      setSaveError('Fout bij ophalen tarieven.')
     } finally {
       setIsLoading(false)
     }
@@ -56,6 +57,7 @@ export default function AdminPage() {
   }
 
   const handleSaveEdit = async (id: string) => {
+    setSaveError('')
     try {
       const response = await fetch('/api/tarieven', {
         method: 'PUT',
@@ -68,29 +70,33 @@ export default function AdminPage() {
           t.id === id ? { ...t, ...editValues } : t
         ))
         setEditingId(null)
-        setSaveMessage('Tarief bijgewerkt')
-        setTimeout(() => setSaveMessage(''), 3000)
+        setSaveSuccess('Tarief bijgewerkt')
+        setTimeout(() => setSaveSuccess(''), 3000)
       } else {
         const err = await response.json()
-        setSaveMessage(`Fout: ${err.error}`)
+        setSaveError(err.error ?? 'Opslaan mislukt.')
       }
     } catch {
-      setSaveMessage('Verbindingsfout')
+      setSaveError('Verbindingsfout — probeer opnieuw.')
     }
   }
 
   const handleDelete = async (id: string) => {
     if (!confirm('Tarief verwijderen?')) return
 
+    setSaveError('')
     try {
       const response = await fetch(`/api/tarieven?id=${id}`, { method: 'DELETE' })
       if (response.ok) {
         setTarieven(prev => prev.filter(t => t.id !== id))
-        setSaveMessage('Tarief verwijderd')
-        setTimeout(() => setSaveMessage(''), 3000)
+        setSaveSuccess('Tarief verwijderd')
+        setTimeout(() => setSaveSuccess(''), 3000)
+      } else {
+        const err = await response.json()
+        setSaveError(err.error ?? 'Verwijderen mislukt.')
       }
     } catch {
-      setSaveMessage('Fout bij verwijderen')
+      setSaveError('Verbindingsfout — probeer opnieuw.')
     }
   }
 
@@ -98,6 +104,7 @@ export default function AdminPage() {
     e.preventDefault()
     if (!newTarief.code.trim()) return
 
+    setSaveError('')
     try {
       const response = await fetch('/api/tarieven', {
         method: 'POST',
@@ -108,14 +115,14 @@ export default function AdminPage() {
       if (response.ok) {
         await fetchTarieven()
         setNewTarief({ code: '', omschrijving: '', uurtarief: 60 })
-        setSaveMessage('Tarief toegevoegd')
-        setTimeout(() => setSaveMessage(''), 3000)
+        setSaveSuccess('Tarief toegevoegd')
+        setTimeout(() => setSaveSuccess(''), 3000)
       } else {
         const err = await response.json()
-        setSaveMessage(`Fout: ${err.error}`)
+        setSaveError(err.error ?? 'Toevoegen mislukt.')
       }
     } catch {
-      setSaveMessage('Verbindingsfout')
+      setSaveError('Verbindingsfout — probeer opnieuw.')
     }
   }
 
@@ -198,15 +205,20 @@ export default function AdminPage() {
           </button>
         </div>
 
-        {saveMessage && (
+        {saveError && (
           <div
             className="mb-4 px-4 py-3 rounded-lg text-sm"
-            style={{
-              backgroundColor: saveMessage.startsWith('Fout') ? 'rgba(255, 68, 68, 0.1)' : 'rgba(0, 232, 255, 0.1)',
-              color: saveMessage.startsWith('Fout') ? '#FF4444' : '#00E8FF',
-            }}
+            style={{ backgroundColor: 'rgba(255, 68, 68, 0.1)', color: '#FF4444' }}
           >
-            {saveMessage}
+            {saveError}
+          </div>
+        )}
+        {saveSuccess && (
+          <div
+            className="mb-4 px-4 py-3 rounded-lg text-sm"
+            style={{ backgroundColor: 'rgba(0, 232, 255, 0.1)', color: '#00E8FF' }}
+          >
+            {saveSuccess}
           </div>
         )}
 

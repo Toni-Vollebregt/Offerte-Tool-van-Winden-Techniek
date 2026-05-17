@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Header from '@/components/Header'
 import StepIndicator from '@/components/StepIndicator'
@@ -256,6 +256,9 @@ export default function HomePage() {
   const [progress, setProgress] = useState<string>('')
   const [progressPercent, setProgressPercent] = useState(0)
   const [validatieResultaat, setValidatieResultaat] = useState<ValidatieResultaat | null>(null)
+  const [isAddingProject, setIsAddingProject] = useState(false)
+  const [addProjectError, setAddProjectError] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleUpload = useCallback(async (file: File) => {
     setIsLoading(true)
@@ -378,6 +381,80 @@ export default function HomePage() {
     setError(undefined)
     setProgress('')
     setProgressPercent(0)
+  }
+
+  const handleProjectFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+
+    setIsAddingProject(true)
+    setAddProjectError('')
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const parseResponse = await fetch('/api/parse-project', {
+        method: 'POST',
+        body: formData,
+      })
+      if (!parseResponse.ok) {
+        const err = await parseResponse.json()
+        setAddProjectError(err.error ?? 'Fout bij verwerken van project PDF.')
+        return
+      }
+      const { klus: parsedKlus } = await parseResponse.json() as { klus: Partial<Klus> }
+
+      const tarievenResponse = await fetch('/api/tarieven')
+      const tarieven: Tarief[] = await tarievenResponse.json()
+
+      let uurtarief = 60
+      if (parsedKlus.werkzaamhedenCodes && parsedKlus.werkzaamhedenCodes.length > 0) {
+        const matchedTarieven = parsedKlus.werkzaamhedenCodes
+          .map(code => tarieven.find(t => t.code === code))
+          .filter(Boolean) as Tarief[]
+        if (matchedTarieven.length > 0) {
+          uurtarief = Math.max(...matchedTarieven.map(t => t.uurtarief))
+        }
+      }
+
+      // Full round-trip km for standalone project (not part of day-grouping)
+      let afstandKm = 0
+      let reisUren = 0
+      let mapsError: string | undefined
+      const mapsTarget = parsedKlus.mapsQuery || parsedKlus.locatie
+      if (mapsTarget) {
+        const result = await fetchKm(mapsTarget)
+        if (result.error) {
+          mapsError = result.error
+        } else {
+          afstandKm = Math.round(result.km * 2 * 10) / 10
+          reisUren = Math.round(result.uren * 100) / 100
+        }
+      }
+
+      const klus = berekenKlus(parsedKlus, afstandKm, reisUren, uurtarief)
+      if (parsedKlus.mapsQuery) klus.mapsQuery = parsedKlus.mapsQuery
+      if (mapsError) klus.mapsError = mapsError
+
+      setValidatieResultaat(prev => {
+        if (!prev) return prev
+        const newKlussen = [...prev.offerte.klussen, klus]
+        const totalen = berekenOfferteTotalen(newKlussen)
+        const updatedOfferte: Offerte = { ...prev.offerte, klussen: newKlussen, ...totalen }
+        return {
+          ...prev,
+          aantalOpdrachten: newKlussen.length,
+          meldingen: valideerOfferte(newKlussen, updatedOfferte),
+          offerte: updatedOfferte,
+        }
+      })
+    } catch {
+      setAddProjectError('Verbindingsfout — probeer opnieuw.')
+    } finally {
+      setIsAddingProject(false)
+    }
   }
 
   const aantalErrors = validatieResultaat?.meldingen.filter(m => m.type === 'error').length ?? 0
@@ -524,6 +601,28 @@ export default function HomePage() {
                   }}
                 >
                   {aantalErrors > 0 ? 'Toch doorgaan naar review →' : 'Doorgaan naar review →'}
+                </button>
+              </div>
+
+              {/* Los project toevoegen */}
+              <div className="pt-1">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf"
+                  className="hidden"
+                  onChange={handleProjectFileChange}
+                />
+                {addProjectError && (
+                  <p className="text-xs mb-2" style={{ color: '#FF5050' }}>{addProjectError}</p>
+                )}
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isAddingProject}
+                  className="w-full py-2.5 px-4 rounded-xl text-sm font-medium transition-opacity hover:opacity-80 disabled:opacity-50"
+                  style={{ backgroundColor: '#3D3D3D', color: '#9D9D9D', border: '1px solid #4D4D4D' }}
+                >
+                  {isAddingProject ? 'Project inlezen...' : '+ Voeg los project toe'}
                 </button>
               </div>
             </div>

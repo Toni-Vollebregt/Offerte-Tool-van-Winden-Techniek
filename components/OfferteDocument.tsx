@@ -279,6 +279,7 @@ export default function OfferteDocument({ offerte, logoUrl }: OfferteDocumentPro
           Hierbij ontvangt u onze offerte voor de uitgevoerde onderhoudswerkzaamheden in {offerte.maand} {offerte.jaar}.
           Alle werkzaamheden worden uitgevoerd conform de overeengekomen kwaliteitsstandaarden.
           Reiskosten worden berekend vanuit {BEDRIJF.stad}.
+          Prijzen zijn exclusief meerwerk en onvoorziene werkzaamheden.
         </Text>
 
         {/* Summary table */}
