@@ -35,6 +35,20 @@ export interface Offerte {
   aangemaakt?: string
 }
 
+export interface Factuur {
+  id?: string
+  maand: string
+  jaar: number
+  klussen: Klus[]
+  subtotaalArbeid: number
+  subtotaalReisKm: number
+  subtotaalReisUur: number
+  totaal: number
+  btw: number
+  totaalInclBTW: number
+  aangemaakt?: string
+}
+
 export interface Tarief {
   id: string
   code: string

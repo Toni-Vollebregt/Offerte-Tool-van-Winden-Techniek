@@ -17,6 +17,16 @@ create table offertes (
   aangemaakt timestamp default now()
 );
 
+-- Create facturen table
+create table if not exists facturen (
+  id uuid default gen_random_uuid() primary key,
+  maand text,
+  jaar integer,
+  totaal decimal(10,2),
+  data jsonb,
+  aangemaakt timestamp default now()
+);
+
 -- Insert default tarieven
 insert into tarieven (code, omschrijving, uurtarief) values
   ('O-G', 'Onderhoud Garagedeuren', 60.00),

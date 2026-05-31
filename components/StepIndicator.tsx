@@ -1,17 +1,26 @@
 'use client'
 
-const STEPS = [
+const STEPS_OFFERTE = [
   { label: 'Upload', description: 'PDF inladen' },
   { label: 'Berekening', description: 'Prijzen berekenen' },
   { label: 'Review', description: 'Controleren' },
   { label: 'Definitief', description: 'Offerte genereren' },
 ]
 
+const STEPS_FACTUUR = [
+  { label: 'Upload', description: 'PDF inladen' },
+  { label: 'Berekening', description: 'Prijzen berekenen' },
+  { label: 'Review', description: 'Controleren' },
+  { label: 'Definitief', description: 'Factuur genereren' },
+]
+
 interface StepIndicatorProps {
   currentStep: 1 | 2 | 3 | 4
+  flow?: 'offerte' | 'factuur'
 }
 
-export default function StepIndicator({ currentStep }: StepIndicatorProps) {
+export default function StepIndicator({ currentStep, flow = 'offerte' }: StepIndicatorProps) {
+  const STEPS = flow === 'factuur' ? STEPS_FACTUUR : STEPS_OFFERTE
   return (
     <div className="w-full py-6">
       <div className="max-w-2xl mx-auto">
