@@ -24,7 +24,7 @@ export default function Header() {
           </div>
           <div>
             <p className="text-white font-bold text-lg leading-tight">Van Winden Techniek</p>
-            <p style={{ color: '#00E8FF' }} className="text-sm font-medium">Offerte Tool</p>
+            <p style={{ color: '#00E8FF' }} className="text-sm font-medium">Admin Tool</p>
           </div>
         </Link>
         <div className="ml-auto">
