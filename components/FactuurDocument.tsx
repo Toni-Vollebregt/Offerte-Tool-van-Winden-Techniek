@@ -19,7 +19,7 @@ const BEDRIJF = {
   email:   'info@vanwinden-techniek.nl',
   kvk:     '82755280',
   btwnr:   'NL003725695B69',
-  iban:    'NL00 BANK 0000 0000 00',
+  iban:    'NL41 KNAB 0407 2672 47',
 }
 
 const BETALINGSTERMIJN_DAGEN = 30
@@ -199,9 +199,10 @@ function addDays(days: number): string {
 interface FactuurDocumentProps {
   factuur: Factuur
   logoUrl?: string
+  technicianName?: string
 }
 
-export default function FactuurDocument({ factuur, logoUrl }: FactuurDocumentProps) {
+export default function FactuurDocument({ factuur, logoUrl, technicianName }: FactuurDocumentProps) {
   const today = new Date().toLocaleDateString('nl-NL', {
     day: '2-digit',
     month: 'long',
@@ -260,7 +261,7 @@ export default function FactuurDocument({ factuur, logoUrl }: FactuurDocumentPro
         </View>
 
         <Text style={styles.subjectText}>
-          Betreft: Factuur onderhoudswerkzaamheden {factuur.maand} {factuur.jaar}
+          Betreft: Factuur onderhoudswerkzaamheden {factuur.maand} {factuur.jaar}{technicianName ? ` — ${technicianName}` : ''}
         </Text>
         <Text style={styles.intro}>
           Hierbij ontvangt u onze factuur voor de uitgevoerde onderhoudswerkzaamheden in {factuur.maand} {factuur.jaar}.

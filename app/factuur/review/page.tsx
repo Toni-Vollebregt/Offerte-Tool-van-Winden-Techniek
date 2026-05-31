@@ -160,10 +160,30 @@ export default function FactuurReviewPage() {
             </div>
           </div>
 
-          <div className="space-y-3">
-            {klussen.map((klus, index) => (
-              <KlusCard key={klus.id} klus={klus} onChange={handleKlusChange} index={index} />
-            ))}
+          <div className="space-y-6">
+            {(() => {
+              const techGroups = [...new Set(klussen.map(k => k.technicianName ?? ''))].filter(Boolean)
+              if (techGroups.length < 2) {
+                return klussen.map((klus, index) => (
+                  <KlusCard key={klus.id} klus={klus} onChange={handleKlusChange} index={index} />
+                ))
+              }
+              return techGroups.map(tech => {
+                const techKlussen = klussen.filter(k => (k.technicianName ?? '') === tech)
+                return (
+                  <div key={tech} className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-px flex-1" style={{ backgroundColor: '#4D4D4D' }} />
+                      <span className="text-sm font-semibold px-3 py-1 rounded-full" style={{ backgroundColor: '#3D3D3D', color: '#00E8FF' }}>{tech}</span>
+                      <div className="h-px flex-1" style={{ backgroundColor: '#4D4D4D' }} />
+                    </div>
+                    {techKlussen.map((klus, index) => (
+                      <KlusCard key={klus.id} klus={klus} onChange={handleKlusChange} index={index} />
+                    ))}
+                  </div>
+                )
+              })
+            })()}
           </div>
 
           <div>

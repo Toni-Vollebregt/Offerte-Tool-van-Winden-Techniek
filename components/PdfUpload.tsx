@@ -6,9 +6,10 @@ interface PdfUploadProps {
   onUpload: (file: File) => void
   isLoading: boolean
   error?: string
+  label?: string
 }
 
-export default function PdfUpload({ onUpload, isLoading, error }: PdfUploadProps) {
+export default function PdfUpload({ onUpload, isLoading, error, label = 'maandplanning' }: PdfUploadProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -128,7 +129,7 @@ export default function PdfUpload({ onUpload, isLoading, error }: PdfUploadProps
                 Sleep PDF hier of klik om te kiezen
               </p>
               <p style={{ color: '#9D9D9D' }} className="text-sm mt-1">
-                ExcelAir System-Care maandplanning (PDF)
+                ExcelAir System-Care {label} (PDF)
               </p>
             </div>
             {error ? (

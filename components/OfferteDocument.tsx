@@ -207,9 +207,10 @@ function formatNL(num: number, decimals = 2): string {
 interface OfferteDocumentProps {
   offerte: Offerte
   logoUrl?: string
+  technicianName?: string
 }
 
-export default function OfferteDocument({ offerte, logoUrl }: OfferteDocumentProps) {
+export default function OfferteDocument({ offerte, logoUrl, technicianName }: OfferteDocumentProps) {
   const today = new Date().toLocaleDateString('nl-NL', {
     day: '2-digit',
     month: 'long',
@@ -271,7 +272,7 @@ export default function OfferteDocument({ offerte, logoUrl }: OfferteDocumentPro
 
         {/* Subject + intro */}
         <Text style={styles.subjectText}>
-          Betreft: Maandelijkse onderhoudswerkzaamheden {offerte.maand} {offerte.jaar}
+          Betreft: Maandelijkse onderhoudswerkzaamheden {offerte.maand} {offerte.jaar}{technicianName ? ` — ${technicianName}` : ''}
         </Text>
         <Text style={styles.intro}>
           Hierbij ontvangt u onze offerte voor de uitgevoerde onderhoudswerkzaamheden in {offerte.maand} {offerte.jaar}.

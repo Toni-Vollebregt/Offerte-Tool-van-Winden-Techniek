@@ -36,7 +36,7 @@ export default function LandingPage() {
               </div>
               <p className="text-white font-semibold text-lg">Offerte</p>
               <p style={{ color: '#9D9D9D' }} className="text-sm mt-1">
-                Weekplanning omzetten naar een offerte voor ExcelAir
+                Maandplanning omzetten naar een offerte voor ExcelAir
               </p>
               <div className="mt-4 flex items-center gap-1" style={{ color: '#00E8FF' }}>
                 <span className="text-sm font-medium">Starten</span>

@@ -25,6 +25,7 @@ interface ParsedKlus {
   werkbonNummer?: string
   werkzaamhedenOmschrijving?: string
   werkzaamhedenCodes?: string[]
+  technicianName?: string
 }
 
 interface KmAllocation {
@@ -93,7 +94,8 @@ async function berekenSlimmeKilometers(
 
   const dagGroepen = new Map<string, number[]>()
   for (let i = 0; i < klussen.length; i++) {
-    const key = klussen[i].datum || 'onbekend'
+    const tech = klussen[i].technicianName || ''
+    const key = `${tech}|||${klussen[i].datum || 'onbekend'}`
     if (!dagGroepen.has(key)) dagGroepen.set(key, [])
     dagGroepen.get(key)!.push(i)
   }
@@ -515,7 +517,7 @@ export default function FactuurPage() {
             </div>
           ) : (
             <>
-              <PdfUpload onUpload={handleUpload} isLoading={isLoading} error={error} />
+              <PdfUpload onUpload={handleUpload} isLoading={isLoading} error={error} label="weekplanning" />
 
               {isLoading && (
                 <div className="max-w-2xl mx-auto space-y-3">

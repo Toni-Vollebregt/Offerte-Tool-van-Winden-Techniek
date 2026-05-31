@@ -6,9 +6,10 @@ import type { Factuur } from '@/types'
 interface FactuurActionsProps {
   factuur: Factuur
   fileName: string
+  technicianName?: string
 }
 
-export default function FactuurActions({ factuur, fileName }: FactuurActionsProps) {
+export default function FactuurActions({ factuur, fileName, technicianName }: FactuurActionsProps) {
   const [mounted, setMounted] = useState(false)
   const [PDFDownloadLink, setPDFDownloadLink] = useState<React.ComponentType<{
     document: React.ReactElement
@@ -20,6 +21,7 @@ export default function FactuurActions({ factuur, fileName }: FactuurActionsProp
   const [FactuurDocument, setFactuurDocument] = useState<React.ComponentType<{
     factuur: Factuur
     logoUrl?: string
+    technicianName?: string
   }> | null>(null)
 
   useEffect(() => {
@@ -47,7 +49,7 @@ export default function FactuurActions({ factuur, fileName }: FactuurActionsProp
   const logoUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/vanwinden_techniek_logo_transparant.png`
     : undefined
-  const doc = <FactuurDocument factuur={factuur} logoUrl={logoUrl} />
+  const doc = <FactuurDocument factuur={factuur} logoUrl={logoUrl} technicianName={technicianName} />
 
   return (
     <PDFDownloadLink

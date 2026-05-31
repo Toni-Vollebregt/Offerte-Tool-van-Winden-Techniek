@@ -6,9 +6,10 @@ import type { Offerte } from '@/types'
 interface PdfActionsProps {
   offerte: Offerte
   fileName: string
+  technicianName?: string
 }
 
-export default function PdfActions({ offerte, fileName }: PdfActionsProps) {
+export default function PdfActions({ offerte, fileName, technicianName }: PdfActionsProps) {
   const [mounted, setMounted] = useState(false)
   const [PDFDownloadLink, setPDFDownloadLink] = useState<React.ComponentType<{
     document: React.ReactElement
@@ -20,6 +21,7 @@ export default function PdfActions({ offerte, fileName }: PdfActionsProps) {
   const [OfferteDocument, setOfferteDocument] = useState<React.ComponentType<{
     offerte: Offerte
     logoUrl?: string
+    technicianName?: string
   }> | null>(null)
 
   useEffect(() => {
@@ -51,7 +53,7 @@ export default function PdfActions({ offerte, fileName }: PdfActionsProps) {
   const logoUrl = typeof window !== 'undefined'
     ? `${window.location.origin}/vanwinden_techniek_logo_transparant.png`
     : undefined
-  const doc = <OfferteDocument offerte={offerte} logoUrl={logoUrl} />
+  const doc = <OfferteDocument offerte={offerte} logoUrl={logoUrl} technicianName={technicianName} />
 
   return (
     <PDFDownloadLink

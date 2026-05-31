@@ -128,6 +128,19 @@ function parseLine(line: string): Partial<Klus> | null {
   }
 }
 
+const KNOWN_HEADER_WORDS = /^(week|dag|datum|duur|project|taak|werkbon|werkzaamheden|maand|planning|naam|code|omschrijving|totaal|pagina|versie|datum|system|care|excelair)/i
+
+function isLikelyTechnicianName(line: string): boolean {
+  const text = line.trim()
+  if (text.length < 5 || text.length > 45) return false
+  if (!/^[A-Za-zÀ-ÖØ-öø-ÿ]/.test(text)) return false
+  if (!/^[A-Za-zÀ-ÖØ-öø-ÿ\s\-']+$/.test(text)) return false
+  const words = text.split(/\s+/)
+  if (words.length < 2) return false
+  if (KNOWN_HEADER_WORDS.test(text)) return false
+  return true
+}
+
 export async function parsePDF(buffer: Buffer): Promise<Partial<Klus>[]> {
   // pdf-parse v1 — no worker, works in Vercel serverless
   // Import via lib path to avoid Next.js test-file resolution issues
@@ -135,12 +148,16 @@ export async function parsePDF(buffer: Buffer): Promise<Partial<Klus>[]> {
   const data = await pdfParse(buffer)
 
   const klussen: Partial<Klus>[] = []
+  let currentTechnician: string | undefined = undefined
+
   for (const line of data.text.split('\n')) {
     const klus = parseLine(line)
     if (klus && klus.duur && klus.duur > 0) {
       if (!klussen.find(k => k.id === klus.id)) {
-        klussen.push(klus)
+        klussen.push({ ...klus, technicianName: currentTechnician })
       }
+    } else if (isLikelyTechnicianName(line)) {
+      currentTechnician = line.trim()
     }
   }
   return klussen

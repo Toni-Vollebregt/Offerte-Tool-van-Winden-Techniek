@@ -25,6 +25,7 @@ export function berekenKlus(
     duur,
     projectNaam,
     locatie: klus.locatie ?? '',
+    technicianName: klus.technicianName,
     projectCode: klus.projectCode ?? '',
     werkbonNummer: klus.werkbonNummer ?? '',
     werkzaamhedenOmschrijving: klus.werkzaamhedenOmschrijving ?? '',
