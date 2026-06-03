@@ -51,11 +51,14 @@ interface ValidatieResultaat {
   factuur: Factuur
 }
 
-async function fetchKm(query: string, origin?: string): Promise<{ km: number; uren: number; error?: string }> {
+async function fetchKm(query: string, origin?: string, verwachtLocatie?: string): Promise<{ km: number; uren: number; error?: string }> {
   try {
-    const url = origin
+    const base = origin
       ? `/api/maps?origin=${encodeURIComponent(origin)}&locatie=${encodeURIComponent(query)}`
       : `/api/maps?locatie=${encodeURIComponent(query)}`
+    const url = !origin && verwachtLocatie
+      ? `${base}&verwachtLocatie=${encodeURIComponent(verwachtLocatie)}`
+      : base
     const resp = await fetch(url)
     if (!resp.ok) return { km: 0, uren: 0, error: `HTTP-fout bij opzoeken: "${query}"` }
     return await resp.json()
@@ -87,7 +90,7 @@ async function berekenSlimmeKilometers(
   for (const loc of uniqueLocaties) {
     const query = mapsQueryPerLocatie.get(loc)!
     onProgress(`Afstand berekenen: ${query}...`)
-    const result = await fetchKm(query)
+    const result = await fetchKm(query, undefined, loc)
     if (result.error) locatieErrors.set(loc, result.error)
     naaldwijkData.set(loc, result)
   }

@@ -98,12 +98,7 @@ function parseLine(line: string): Partial<Klus> | null {
 
   const locatie = extractLocatie(projectTaak)
   const mapsQuery = extractMapsQuery(projectTaak)
-  const werkzaamhedenCodes = [
-    ...new Set([
-      ...extractWerkzaamhedenCodes(projectTaak),
-      ...extractWerkzaamhedenCodes(werkzaamheden),
-    ]),
-  ]
+  const werkzaamhedenCodes = [...new Set(extractWerkzaamhedenCodes(werkzaamheden))]
   const projectNaam = projectTaak.replace(LEADING_PREFIX_RE, '').trim()
 
   return {

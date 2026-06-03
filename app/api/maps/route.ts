@@ -6,7 +6,8 @@ export const runtime = 'nodejs'
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl
   const locatie = searchParams.get('locatie')
-  const origin = searchParams.get('origin') // optioneel, default = Naaldwijk
+  const origin = searchParams.get('origin')
+  const verwachtLocatie = searchParams.get('verwachtLocatie') ?? undefined
 
   if (!locatie) {
     return NextResponse.json({ error: 'locatie parameter required' }, { status: 400 })
@@ -15,7 +16,7 @@ export async function GET(request: NextRequest) {
   try {
     const result = origin
       ? await getAfstandEnTijdVanNaar(origin, locatie)
-      : await getAfstandEnTijd(locatie)
+      : await getAfstandEnTijd(locatie, verwachtLocatie)
     return NextResponse.json(result)
   } catch (error) {
     console.error('Maps API error:', error)
