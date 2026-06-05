@@ -4,16 +4,9 @@ import type { Factuur } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
-const MAAND_NUMMERS: Record<string, number> = {
-  januari: 1, februari: 2, maart: 3, april: 4,
-  mei: 5, juni: 6, juli: 7, augustus: 8,
-  september: 9, oktober: 10, november: 11, december: 12,
-}
-
 function genereerFactuurnummer(factuur: Factuur): number {
-  const maandNum = MAAND_NUMMERS[factuur.maand.toLowerCase()] ?? (new Date().getMonth() + 1)
   const rand = Math.floor(Math.random() * 900) + 100
-  return factuur.jaar * 100000 + maandNum * 1000 + rand
+  return factuur.jaar * 100000 + (factuur.weekNummer ?? 1) * 1000 + rand
 }
 
 export async function POST(req: NextRequest) {

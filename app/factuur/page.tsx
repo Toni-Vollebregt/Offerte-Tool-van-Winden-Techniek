@@ -8,10 +8,13 @@ import PdfUpload from '@/components/PdfUpload'
 import type { Klus, Rit, Factuur, Tarief } from '@/types'
 import { berekenKlus, berekenRit, berekenOfferteTotalen, formatCurrency } from '@/lib/calculations'
 
-const MAANDEN = [
-  'januari', 'februari', 'maart', 'april', 'mei', 'juni',
-  'juli', 'augustus', 'september', 'oktober', 'november', 'december',
-]
+function getISOWeek(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+  const dayNum = d.getUTCDay() || 7
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum)
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1))
+  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
+}
 
 interface ParsedKlus {
   id?: string
@@ -277,19 +280,17 @@ export default function FactuurPage() {
 
       const now = new Date()
       const jaar = now.getFullYear()
-      let maand = MAANDEN[now.getMonth()]
+      let weekNummer = getISOWeek(now)
       if (klussen.length > 0 && klussen[0].datum) {
-        const datumParts = klussen[0].datum.split('-')
-        if (datumParts.length >= 2) {
-          const maandNum = parseInt(datumParts[1]) - 1
-          if (maandNum >= 0 && maandNum < 12) maand = MAANDEN[maandNum]
-        }
+        const [dd, mm, yyyy] = klussen[0].datum.split('-')
+        const d = new Date(Number(yyyy), Number(mm) - 1, Number(dd))
+        weekNummer = getISOWeek(d)
       }
 
       const totalen = berekenOfferteTotalen(klussen, rits)
 
       const factuur: Factuur = {
-        maand, jaar, klussen, rits,
+        weekNummer, jaar, klussen, rits,
         ...totalen,
         aangemaakt: new Date().toISOString(),
       }

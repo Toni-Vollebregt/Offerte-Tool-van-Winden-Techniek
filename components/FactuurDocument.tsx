@@ -338,7 +338,7 @@ interface FactuurDocumentProps {
 
 export default function FactuurDocument({ factuur, logoUrl }: FactuurDocumentProps) {
   const today = new Date().toLocaleDateString('nl-NL', { day: '2-digit', month: 'long', year: 'numeric' })
-  const factuurNummer = `FACT-${factuur.jaar}-${factuur.maand.toUpperCase().slice(0, 3)}-${Date.now().toString().slice(-4)}`
+  const factuurNummer = `FACT-${factuur.jaar}-W${String(factuur.weekNummer).padStart(2, '0')}-${Date.now().toString().slice(-4)}`
   const btw = factuur.btw ?? Math.round(factuur.totaal * 0.21 * 100) / 100
   const totaalInclBTW = factuur.totaalInclBTW ?? Math.round(factuur.totaal * 1.21 * 100) / 100
   const vervaldatum = addDays(BETALINGSTERMIJN_DAGEN)
@@ -354,9 +354,9 @@ export default function FactuurDocument({ factuur, logoUrl }: FactuurDocumentPro
 
   return (
     <Document
-      title={`Factuur Van Winden Techniek - ${factuur.maand} ${factuur.jaar}`}
+      title={`Factuur Van Winden Techniek - Week ${factuur.weekNummer} ${factuur.jaar}`}
       author="Van Winden Techniek"
-      subject="Maandelijkse onderhoud factuur"
+      subject="Wekelijkse onderhoud factuur"
     >
       {/* ══════════════ PAGINA 1 — Factuur ══════════════════ */}
       <Page size="A4" orientation="portrait" style={styles.page}>
@@ -380,7 +380,7 @@ export default function FactuurDocument({ factuur, logoUrl }: FactuurDocumentPro
               Nummer: {factuurNummer}{'\n'}
               Datum: {today}{'\n'}
               Vervaldatum: {vervaldatum}{'\n'}
-              Periode: {factuur.maand} {factuur.jaar}{'\n'}
+              Periode: Week {factuur.weekNummer} {factuur.jaar}{'\n'}
               KvK: {BEDRIJF.kvk}{'\n'}
               BTW-nr: {BEDRIJF.btwnr}
             </Text>
@@ -394,15 +394,15 @@ export default function FactuurDocument({ factuur, logoUrl }: FactuurDocumentPro
           <Text style={styles.recipientLabel}>Gericht aan</Text>
           <Text style={styles.recipientName}>ExcelAir System-Care</Text>
           <Text style={styles.recipientDetails}>
-            Onderhoud en servicewerkzaamheden — {factuur.maand} {factuur.jaar}
+            Onderhoud en servicewerkzaamheden — week {factuur.weekNummer} {factuur.jaar}
           </Text>
         </View>
 
         <Text style={styles.subjectText}>
-          Betreft: Factuur onderhoudswerkzaamheden {factuur.maand} {factuur.jaar}
+          Betreft: Factuur onderhoudswerkzaamheden week {factuur.weekNummer} {factuur.jaar}
         </Text>
         <Text style={styles.intro}>
-          Hierbij ontvangt u onze factuur voor de uitgevoerde onderhoudswerkzaamheden in {factuur.maand} {factuur.jaar}.
+          Hierbij ontvangt u onze factuur voor de uitgevoerde onderhoudswerkzaamheden in week {factuur.weekNummer} {factuur.jaar}.
           Wij verzoeken u het factuurbedrag binnen {BETALINGSTERMIJN_DAGEN} dagen na factuurdatum te voldoen op rekeningnummer {BEDRIJF.iban} t.n.v. {BEDRIJF.naam}, onder vermelding van het factuurnummer.
           Reiskosten worden berekend vanuit {BEDRIJF.stad}.
         </Text>
@@ -492,7 +492,7 @@ export default function FactuurDocument({ factuur, logoUrl }: FactuurDocumentPro
           </View>
           <View style={styles.headerSmallRight}>
             <Text style={styles.headerSmallTitle}>Bijlage — Specificaties per dag</Text>
-            <Text style={styles.headerSmallSub}>{factuur.maand} {factuur.jaar} · {factuurNummer}</Text>
+            <Text style={styles.headerSmallSub}>Week {factuur.weekNummer} {factuur.jaar} · {factuurNummer}</Text>
           </View>
         </View>
 

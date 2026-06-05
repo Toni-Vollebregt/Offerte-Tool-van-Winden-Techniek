@@ -52,7 +52,7 @@ export interface Offerte {
 
 export interface Factuur {
   id?: string
-  maand: string
+  weekNummer: number
   jaar: number
   klussen: Klus[]
   rits?: Rit[]

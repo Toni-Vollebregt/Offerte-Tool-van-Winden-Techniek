@@ -94,7 +94,7 @@ export default function FactuurFinalizePage() {
   }
 
   const techs = [...new Set(factuur.klussen.map(k => k.technicianName).filter(Boolean))]
-  const fileName = `Factuur_VanWindenTechniek_${factuur.maand}_${factuur.jaar}.pdf`
+  const fileName = `Factuur_VanWindenTechniek_Week${factuur.weekNummer}_${factuur.jaar}.pdf`
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#2D2D2D' }}>
@@ -108,7 +108,7 @@ export default function FactuurFinalizePage() {
             <div>
               <h1 className="text-2xl font-bold text-white">Definitieve factuur</h1>
               <p style={{ color: '#9D9D9D' }} className="mt-1 text-sm">
-                {factuur.maand} {factuur.jaar} &bull; {factuur.klussen.length} werkbonnen
+                Week {factuur.weekNummer} {factuur.jaar} &bull; {factuur.klussen.length} werkbonnen
                 {techs.length > 0 && ` · ${techs.join(', ')}`}
               </p>
             </div>

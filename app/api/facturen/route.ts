@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase
       .from('facturen')
       .insert({
-        maand: body.maand,
+        maand: body.weekNummer != null ? String(body.weekNummer) : null,
         jaar: body.jaar,
         totaal: body.totaal,
         data: body,

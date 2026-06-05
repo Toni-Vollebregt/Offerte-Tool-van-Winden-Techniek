@@ -411,7 +411,7 @@ export default function FactuurReviewPage() {
             <div>
               <h1 className="text-2xl font-bold text-white">Factuur controleren</h1>
               <p style={{ color: '#9D9D9D' }} className="mt-1 text-sm">
-                {factuur.maand} {factuur.jaar} &bull; {klussen.length} klussen &bull; {rits.length} ritten
+                Week {factuur.weekNummer} {factuur.jaar} &bull; {klussen.length} klussen &bull; {rits.length} ritten
               </p>
             </div>
             <button onClick={handleTerug} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors" style={{ color: '#9D9D9D', backgroundColor: '#3D3D3D' }}>
