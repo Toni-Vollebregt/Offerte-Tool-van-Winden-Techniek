@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation'
 import Header from '@/components/Header'
 import StepIndicator from '@/components/StepIndicator'
 import PdfUpload from '@/components/PdfUpload'
-import type { Klus, Factuur, Tarief } from '@/types'
-import { berekenKlus, berekenOfferteTotalen, formatCurrency } from '@/lib/calculations'
+import type { Klus, Rit, Factuur, Tarief } from '@/types'
+import { berekenKlus, berekenRit, berekenOfferteTotalen, formatCurrency } from '@/lib/calculations'
 
 const MAANDEN = [
   'januari', 'februari', 'maart', 'april', 'mei', 'juni',
@@ -28,13 +28,8 @@ interface ParsedKlus {
   technicianName?: string
 }
 
-interface KmAllocation {
-  afstandKm: number
-  reisUren: number
-}
-
 interface SlimmeKilometersResult {
-  allocations: Map<number, KmAllocation>
+  rits: Rit[]
   locatieErrors: Map<string, string>
 }
 
@@ -71,12 +66,10 @@ async function berekenSlimmeKilometers(
   klussen: ParsedKlus[],
   onProgress: (msg: string) => void
 ): Promise<SlimmeKilometersResult> {
-  const allocations = new Map<number, KmAllocation>()
   const locatieErrors = new Map<string, string>()
-  for (let i = 0; i < klussen.length; i++) {
-    allocations.set(i, { afstandKm: 0, reisUren: 0 })
-  }
+  const rits: Rit[] = []
 
+  // Unieke locaties → mapsQuery mapping
   const mapsQueryPerLocatie = new Map<string, string>()
   for (const klus of klussen) {
     if (klus.locatie && !mapsQueryPerLocatie.has(klus.locatie)) {
@@ -84,6 +77,7 @@ async function berekenSlimmeKilometers(
     }
   }
 
+  // Afstand Naaldwijk → elke unieke locatie
   const uniqueLocaties = [...mapsQueryPerLocatie.keys()]
   onProgress(`Afstanden ophalen voor ${uniqueLocaties.length} locatie(s)...`)
   const naaldwijkData = new Map<string, { km: number; uren: number }>()
@@ -95,6 +89,7 @@ async function berekenSlimmeKilometers(
     naaldwijkData.set(loc, result)
   }
 
+  // Groepeer klussen per technicus per dag
   const dagGroepen = new Map<string, number[]>()
   for (let i = 0; i < klussen.length; i++) {
     const tech = klussen[i].technicianName || ''
@@ -103,6 +98,7 @@ async function berekenSlimmeKilometers(
     dagGroepen.get(key)!.push(i)
   }
 
+  // Tussenafstanden voor consecutieve locaties per dag
   const tussenData = new Map<string, { km: number; uren: number }>()
   for (const [, indices] of dagGroepen) {
     const locatieReeks: string[] = []
@@ -127,7 +123,13 @@ async function berekenSlimmeKilometers(
     }
   }
 
-  for (const [, indices] of dagGroepen) {
+  // Bouw expliciete Rit-objecten per dag per technicus
+  for (const [key, indices] of dagGroepen) {
+    const keyParts = key.split('|||')
+    const tech = keyParts[0]
+    const datum = keyParts[1]
+
+    // Groepeer klus-indices per locatie (behoud volgorde)
     const groepen: { locatie: string; indices: number[] }[] = []
     for (const idx of indices) {
       const loc = klussen[idx].locatie || ''
@@ -139,41 +141,36 @@ async function berekenSlimmeKilometers(
     }
 
     for (let gi = 0; gi < groepen.length; gi++) {
-      const groep = groepen[gi]
-      const eersteIdx = groep.indices[0]
-      const laatsteIdx = groep.indices[groep.indices.length - 1]
-      const loc = groep.locatie
+      const loc = groepen[gi].locatie
+      if (!loc) continue
 
       if (gi === 0) {
-        const data = loc ? (naaldwijkData.get(loc) ?? { km: 0, uren: 0 }) : { km: 0, uren: 0 }
-        const cur = allocations.get(eersteIdx)!
-        allocations.set(eersteIdx, { afstandKm: cur.afstandKm + data.km, reisUren: cur.reisUren + data.uren / 2 })
+        // Rit Naaldwijk → eerste locatie
+        const data = naaldwijkData.get(loc) ?? { km: 0, uren: 0 }
+        rits.push(berekenRit(datum, 'Naaldwijk', loc, data.km, data.uren, tech || undefined, locatieErrors.get(loc)))
       } else {
-        const vorigeLoc = groepen[gi - 1].locatie
-        const paarSleutel = `${vorigeLoc}|||${loc}`
-        const data = loc && vorigeLoc ? (tussenData.get(paarSleutel) ?? { km: 0, uren: 0 }) : { km: 0, uren: 0 }
-        const cur = allocations.get(eersteIdx)!
-        allocations.set(eersteIdx, { afstandKm: cur.afstandKm + data.km / 2, reisUren: cur.reisUren + data.uren / 4 })
+        // Tussenrit vorige → huidige locatie
+        const prevLoc = groepen[gi - 1].locatie
+        if (prevLoc) {
+          const paarSleutel = `${prevLoc}|||${loc}`
+          const data = tussenData.get(paarSleutel) ?? { km: 0, uren: 0 }
+          rits.push(berekenRit(datum, prevLoc, loc, data.km, data.uren, tech || undefined, locatieErrors.get(loc)))
+        }
       }
+    }
 
-      if (gi === groepen.length - 1) {
-        const data = loc ? (naaldwijkData.get(loc) ?? { km: 0, uren: 0 }) : { km: 0, uren: 0 }
-        const cur = allocations.get(laatsteIdx)!
-        allocations.set(laatsteIdx, { afstandKm: cur.afstandKm + data.km, reisUren: cur.reisUren + data.uren / 2 })
-      } else {
-        const volgendeLoc = groepen[gi + 1].locatie
-        const paarSleutel = `${loc}|||${volgendeLoc}`
-        const data = loc && volgendeLoc ? (tussenData.get(paarSleutel) ?? { km: 0, uren: 0 }) : { km: 0, uren: 0 }
-        const cur = allocations.get(laatsteIdx)!
-        allocations.set(laatsteIdx, { afstandKm: cur.afstandKm + data.km / 2, reisUren: cur.reisUren + data.uren / 4 })
-      }
+    // Rit laatste locatie → Naaldwijk
+    const lastLoc = groepen.length > 0 ? groepen[groepen.length - 1].locatie : ''
+    if (lastLoc) {
+      const data = naaldwijkData.get(lastLoc) ?? { km: 0, uren: 0 }
+      rits.push(berekenRit(datum, lastLoc, 'Naaldwijk', data.km, data.uren, tech || undefined))
     }
   }
 
-  return { allocations, locatieErrors }
+  return { rits, locatieErrors }
 }
 
-function valideerFactuur(klussen: Klus[], factuur: Factuur): ValidationWarning[] {
+function valideerFactuur(klussen: Klus[], rits: Rit[], factuur: Factuur): ValidationWarning[] {
   const meldingen: ValidationWarning[] = []
 
   for (const klus of klussen) {
@@ -187,28 +184,28 @@ function valideerFactuur(klussen: Klus[], factuur: Factuur): ValidationWarning[]
     }
   }
 
-  const klussen0km = klussen.filter(k => k.afstandKm === 0 && k.reisUren === 0 && !k.mapsError)
-  if (klussen0km.length > 0 && klussen0km.length === klussen.length) {
+  const rits0km = rits.filter(r => r.afstandKm === 0 && !r.locatieError)
+  if (rits0km.length > 0 && rits0km.length === rits.length && rits.length > 0) {
     meldingen.push({
       type: 'warning',
       veld: 'afstandKm',
-      bericht: `Alle ${klussen.length} klussen hebben afstand 0 km — mogelijk is de Google Maps API niet geconfigureerd.`,
+      bericht: `Alle ritten hebben afstand 0 km — mogelijk is de Google Maps API niet geconfigureerd.`,
     })
-  } else if (klussen0km.length > 0) {
-    const namen = klussen0km.slice(0, 3).map(k => k.projectNaam).join(', ')
-    const extra = klussen0km.length > 3 ? ` en nog ${klussen0km.length - 3} meer` : ''
+  } else if (rits0km.length > 0) {
     meldingen.push({
       type: 'warning',
       veld: 'afstandKm',
-      bericht: `${klussen0km.length} klus(sen) hebben afstand 0 km zonder foutmelding: ${namen}${extra}`,
+      bericht: `${rits0km.length} rit(ten) hebben afstand 0 km zonder foutmelding — controleer handmatig.`,
     })
   }
 
   const somKlussen = Math.round(klussen.reduce((s, k) => s + k.totaal, 0) * 100) / 100
-  if (Math.abs(somKlussen - factuur.totaal) > 0.01) {
+  const somRits = Math.round(rits.reduce((s, r) => s + r.totaal, 0) * 100) / 100
+  const somTotaal = Math.round((somKlussen + somRits) * 100) / 100
+  if (Math.abs(somTotaal - factuur.totaal) > 0.01) {
     meldingen.push({
       type: 'warning',
-      bericht: `Totaalbedrag afwijking: som klussen = ${formatCurrency(somKlussen)}, factuur totaal = ${formatCurrency(factuur.totaal)}`,
+      bericht: `Totaalbedrag afwijking: berekend = ${formatCurrency(somTotaal)}, opgeslagen = ${formatCurrency(factuur.totaal)}`,
     })
   }
 
@@ -253,12 +250,13 @@ export default function FactuurPage() {
       setProgress('Afstanden berekenen via Google Maps...')
       setProgressPercent(35)
 
-      const { allocations, locatieErrors } = await berekenSlimmeKilometers(parsedKlussen, (msg) => setProgress(msg))
+      const { rits, locatieErrors } = await berekenSlimmeKilometers(parsedKlussen, (msg) => setProgress(msg))
 
       setProgress('Factuur samenstellen...')
       setProgressPercent(85)
 
-      const klussen: Klus[] = parsedKlussen.map((parsedKlus, i) => {
+      // Klussen krijgen 0 km — reiskosten zitten volledig in rits
+      const klussen: Klus[] = parsedKlussen.map((parsedKlus) => {
         let uurtarief = 60
         if (parsedKlus.werkzaamhedenCodes && parsedKlus.werkzaamhedenCodes.length > 0) {
           const matchedTarieven = (parsedKlus.werkzaamhedenCodes as string[])
@@ -268,8 +266,7 @@ export default function FactuurPage() {
             uurtarief = Math.max(...matchedTarieven.map(t => t.uurtarief))
           }
         }
-        const { afstandKm, reisUren } = allocations.get(i) ?? { afstandKm: 0, reisUren: 0 }
-        const klus = berekenKlus(parsedKlus, Math.round(afstandKm * 10) / 10, Math.round(reisUren * 100) / 100, uurtarief)
+        const klus = berekenKlus(parsedKlus, 0, 0, uurtarief)
         klus.mapsQuery = parsedKlus.mapsQuery
         const fout = parsedKlus.locatie ? locatieErrors.get(parsedKlus.locatie) : undefined
         if (fout) klus.mapsError = fout
@@ -289,19 +286,18 @@ export default function FactuurPage() {
         }
       }
 
-      const { subtotaalArbeid, subtotaalReisKm, subtotaalReisUur, totaal, btw, totaalInclBTW } =
-        berekenOfferteTotalen(klussen)
+      const totalen = berekenOfferteTotalen(klussen, rits)
 
       const factuur: Factuur = {
-        maand, jaar, klussen,
-        subtotaalArbeid, subtotaalReisKm, subtotaalReisUur, totaal, btw, totaalInclBTW,
+        maand, jaar, klussen, rits,
+        ...totalen,
         aangemaakt: new Date().toISOString(),
       }
 
       setProgressPercent(100)
       setProgress('Valideren...')
 
-      const meldingen = valideerFactuur(klussen, factuur)
+      const meldingen = valideerFactuur(klussen, rits, factuur)
       setValidatieResultaat({ aantalOpdrachten: klussen.length, meldingen, factuur })
       setIsLoading(false)
       setProgress('')
@@ -359,33 +355,36 @@ export default function FactuurPage() {
         }
       }
 
-      let afstandKm = 0
-      let reisUren = 0
       let mapsError: string | undefined
+      const newRits: Rit[] = []
       const mapsTarget = parsedKlus.mapsQuery || parsedKlus.locatie
       if (mapsTarget) {
         const result = await fetch(`/api/maps?locatie=${encodeURIComponent(mapsTarget)}`).then(r => r.json())
         if (result.error) {
           mapsError = result.error
         } else {
-          afstandKm = Math.round(result.km * 2 * 10) / 10
-          reisUren = Math.round(result.uren * 100) / 100
+          const locatie = parsedKlus.locatie ?? mapsTarget
+          const datum = parsedKlus.datum ?? ''
+          const tech = parsedKlus.technicianName
+          newRits.push(berekenRit(datum, 'Naaldwijk', locatie, result.km, result.uren, tech))
+          newRits.push(berekenRit(datum, locatie, 'Naaldwijk', result.km, result.uren, tech))
         }
       }
 
-      const klus = berekenKlus(parsedKlus, afstandKm, reisUren, uurtarief)
+      const klus = berekenKlus(parsedKlus, 0, 0, uurtarief)
       if (parsedKlus.mapsQuery) klus.mapsQuery = parsedKlus.mapsQuery
       if (mapsError) klus.mapsError = mapsError
 
       setValidatieResultaat(prev => {
         if (!prev) return prev
         const newKlussen = [...prev.factuur.klussen, klus]
-        const totalen = berekenOfferteTotalen(newKlussen)
-        const updatedFactuur: Factuur = { ...prev.factuur, klussen: newKlussen, ...totalen }
+        const newAllRits = [...(prev.factuur.rits ?? []), ...newRits]
+        const totalen = berekenOfferteTotalen(newKlussen, newAllRits)
+        const updatedFactuur: Factuur = { ...prev.factuur, klussen: newKlussen, rits: newAllRits, ...totalen }
         return {
           ...prev,
           aantalOpdrachten: newKlussen.length,
-          meldingen: valideerFactuur(newKlussen, updatedFactuur),
+          meldingen: valideerFactuur(newKlussen, newAllRits, updatedFactuur),
           factuur: updatedFactuur,
         }
       })
@@ -430,7 +429,9 @@ export default function FactuurPage() {
                   <p className="text-white font-semibold text-sm">
                     {validatieResultaat.aantalOpdrachten} opdrachten uitgelezen
                   </p>
-                  <p style={{ color: '#9D9D9D' }} className="text-xs">Vergelijk dit met het aantal regels in de PDF</p>
+                  <p style={{ color: '#9D9D9D' }} className="text-xs">
+                    {(validatieResultaat.factuur.rits ?? []).length} ritten berekend — vergelijk met de PDF
+                  </p>
                 </div>
                 <div className="ml-auto">
                   {aantalErrors === 0 && aantalWarnings === 0 ? (
@@ -448,18 +449,16 @@ export default function FactuurPage() {
               {aantalErrors > 0 && (
                 <div className="rounded-xl overflow-hidden" style={{ border: '1px solid rgba(255, 80, 80, 0.4)' }}>
                   <div className="px-4 py-2" style={{ backgroundColor: 'rgba(255, 80, 80, 0.15)' }}>
-                    <p className="text-sm font-semibold" style={{ color: '#FF5050' }}>Fouten — controleer deze vóór het doorgaan</p>
+                    <p className="text-sm font-semibold" style={{ color: '#FF5050' }}>Fouten — controleer vóór het doorgaan</p>
                   </div>
-                  <div>
-                    {validatieResultaat.meldingen.filter(m => m.type === 'error').map((m, i) => (
-                      <div key={i} className="px-4 py-3 flex items-start gap-2" style={{ backgroundColor: 'rgba(255, 80, 80, 0.05)', borderTop: i > 0 ? '1px solid rgba(255, 80, 80, 0.2)' : undefined }}>
-                        <svg className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#FF5050' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                        <p className="text-sm" style={{ color: '#FF9090' }}>{m.bericht}</p>
-                      </div>
-                    ))}
-                  </div>
+                  {validatieResultaat.meldingen.filter(m => m.type === 'error').map((m, i) => (
+                    <div key={i} className="px-4 py-3 flex items-start gap-2" style={{ backgroundColor: 'rgba(255, 80, 80, 0.05)', borderTop: i > 0 ? '1px solid rgba(255, 80, 80, 0.2)' : undefined }}>
+                      <svg className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#FF5050' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      <p className="text-sm" style={{ color: '#FF9090' }}>{m.bericht}</p>
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -468,16 +467,14 @@ export default function FactuurPage() {
                   <div className="px-4 py-2" style={{ backgroundColor: 'rgba(255, 170, 0, 0.15)' }}>
                     <p className="text-sm font-semibold" style={{ color: '#FFAA00' }}>Waarschuwingen</p>
                   </div>
-                  <div>
-                    {validatieResultaat.meldingen.filter(m => m.type === 'warning').map((m, i) => (
-                      <div key={i} className="px-4 py-3 flex items-start gap-2" style={{ backgroundColor: 'rgba(255, 170, 0, 0.05)', borderTop: i > 0 ? '1px solid rgba(255, 170, 0, 0.2)' : undefined }}>
-                        <svg className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#FFAA00' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                        </svg>
-                        <p className="text-sm" style={{ color: '#FFCC66' }}>{m.bericht}</p>
-                      </div>
-                    ))}
-                  </div>
+                  {validatieResultaat.meldingen.filter(m => m.type === 'warning').map((m, i) => (
+                    <div key={i} className="px-4 py-3 flex items-start gap-2" style={{ backgroundColor: 'rgba(255, 170, 0, 0.05)', borderTop: i > 0 ? '1px solid rgba(255, 170, 0, 0.2)' : undefined }}>
+                      <svg className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#FFAA00' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                      </svg>
+                      <p className="text-sm" style={{ color: '#FFCC66' }}>{m.bericht}</p>
+                    </div>
+                  ))}
                 </div>
               )}
 

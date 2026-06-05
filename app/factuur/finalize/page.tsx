@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic'
 import Header from '@/components/Header'
 import StepIndicator from '@/components/StepIndicator'
 import type { Factuur } from '@/types'
-import { berekenOfferteTotalen, formatCurrency } from '@/lib/calculations'
+import { formatCurrency } from '@/lib/calculations'
 
 const FactuurActions = dynamic(() => import('@/components/FactuurActions'), {
   ssr: false,
@@ -19,86 +19,66 @@ const FactuurActions = dynamic(() => import('@/components/FactuurActions'), {
 
 const FactuurPreviewPanel = dynamic(() => import('@/components/FactuurPreviewPanel'), { ssr: false })
 
-type TechState = {
-  isSaving: boolean
-  savedId: string | null
-  saveError: string | null
-  isSending: boolean
-  snelstartNummer: number | null
-  snelstartError: string | null
-}
-
-function defaultTechState(): TechState {
-  return { isSaving: false, savedId: null, saveError: null, isSending: false, snelstartNummer: null, snelstartError: null }
-}
-
-function subsetFactuur(factuur: Factuur, tech: string): Factuur {
-  const klussen = factuur.klussen.filter(k => (k.technicianName ?? '') === tech)
-  return { ...factuur, klussen, ...berekenOfferteTotalen(klussen) }
-}
-
 export default function FactuurFinalizePage() {
   const router = useRouter()
   const [factuur, setFactuur] = useState<Factuur | null>(null)
-  const [techStates, setTechStates] = useState<Record<string, TechState>>({})
+  const [isSaving, setIsSaving] = useState(false)
+  const [savedId, setSavedId] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [isSending, setIsSending] = useState(false)
+  const [snelstartNummer, setSnelstartNummer] = useState<number | null>(null)
+  const [snelstartError, setSnelstartError] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(false)
 
   useEffect(() => {
     const stored = sessionStorage.getItem('factuur')
     if (!stored) { router.push('/factuur'); return }
-    const parsed: Factuur = JSON.parse(stored)
-    setFactuur(parsed)
-
-    const techs = [...new Set(parsed.klussen.map(k => k.technicianName ?? ''))].filter(Boolean)
-    const initial: Record<string, TechState> = {}
-    const key = techs.length >= 2 ? techs : ['']
-    for (const t of key) initial[t] = defaultTechState()
-    setTechStates(initial)
+    setFactuur(JSON.parse(stored))
   }, [router])
 
-  const updateTechState = (tech: string, patch: Partial<TechState>) => {
-    setTechStates(prev => ({ ...prev, [tech]: { ...prev[tech], ...patch } }))
-  }
-
-  const handleOpslaan = async (tech: string, subset: Factuur) => {
-    updateTechState(tech, { isSaving: true, saveError: null })
+  const handleOpslaan = async () => {
+    if (!factuur) return
+    setIsSaving(true)
+    setSaveError(null)
     try {
       const response = await fetch('/api/facturen', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(subset),
+        body: JSON.stringify(factuur),
       })
       if (!response.ok) {
         const err = await response.json()
         throw new Error(err.error || 'Opslaan mislukt')
       }
       const data = await response.json()
-      updateTechState(tech, { savedId: data.id || 'opgeslagen' })
+      setSavedId(data.id || 'opgeslagen')
     } catch (err) {
-      updateTechState(tech, { saveError: err instanceof Error ? err.message : 'Onbekende fout' })
+      setSaveError(err instanceof Error ? err.message : 'Onbekende fout')
     } finally {
-      updateTechState(tech, { isSaving: false })
+      setIsSaving(false)
     }
   }
 
-  const handleSendSnelstart = async (tech: string, subset: Factuur) => {
-    updateTechState(tech, { isSending: true, snelstartError: null })
+  const handleSendSnelstart = async () => {
+    if (!factuur) return
+    setIsSending(true)
+    setSnelstartError(null)
     try {
       const response = await fetch('/api/snelstart/factuur', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ factuur: subset }),
+        body: JSON.stringify({ factuur }),
       })
       const data = await response.json()
       if (!response.ok) {
-        updateTechState(tech, { snelstartError: data.error ?? 'Versturen naar Snelstart mislukt.' })
+        setSnelstartError(data.error ?? 'Versturen naar Snelstart mislukt.')
         return
       }
-      updateTechState(tech, { snelstartNummer: data.factuurnummer })
+      setSnelstartNummer(data.factuurnummer)
     } catch {
-      updateTechState(tech, { snelstartError: 'Verbindingsfout — probeer opnieuw.' })
+      setSnelstartError('Verbindingsfout — probeer opnieuw.')
     } finally {
-      updateTechState(tech, { isSending: false })
+      setIsSending(false)
     }
   }
 
@@ -113,9 +93,8 @@ export default function FactuurFinalizePage() {
     )
   }
 
-  const techGroups = [...new Set(factuur.klussen.map(k => k.technicianName ?? ''))].filter(Boolean)
-  const hasMultipleTechs = techGroups.length >= 2
-  const displayGroups: string[] = hasMultipleTechs ? techGroups : ['']
+  const techs = [...new Set(factuur.klussen.map(k => k.technicianName).filter(Boolean))]
+  const fileName = `Factuur_VanWindenTechniek_${factuur.maand}_${factuur.jaar}.pdf`
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#2D2D2D' }}>
@@ -129,7 +108,8 @@ export default function FactuurFinalizePage() {
             <div>
               <h1 className="text-2xl font-bold text-white">Definitieve factuur</h1>
               <p style={{ color: '#9D9D9D' }} className="mt-1 text-sm">
-                {factuur.maand} {factuur.jaar} &bull; {factuur.klussen.length} werkbonnen{hasMultipleTechs ? ` &bull; ${techGroups.length} monteurs` : ''}
+                {factuur.maand} {factuur.jaar} &bull; {factuur.klussen.length} werkbonnen
+                {techs.length > 0 && ` · ${techs.join(', ')}`}
               </p>
             </div>
             <button onClick={handleTerug} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors" style={{ color: '#9D9D9D', backgroundColor: '#3D3D3D' }}>
@@ -140,14 +120,15 @@ export default function FactuurFinalizePage() {
             </button>
           </div>
 
+          {/* Totalen */}
           <div className="rounded-xl p-5 grid grid-cols-2 gap-4 md:grid-cols-4" style={{ backgroundColor: '#3D3D3D' }}>
             <div>
               <p style={{ color: '#9D9D9D' }} className="text-xs">Arbeidskosten</p>
               <p className="text-white font-semibold">{formatCurrency(factuur.subtotaalArbeid)}</p>
             </div>
             <div>
-              <p style={{ color: '#9D9D9D' }} className="text-xs">Reiskosten km</p>
-              <p className="text-white font-semibold">{formatCurrency(factuur.subtotaalReisKm)}</p>
+              <p style={{ color: '#9D9D9D' }} className="text-xs">Reiskosten</p>
+              <p className="text-white font-semibold">{formatCurrency(factuur.subtotaalReisKm + factuur.subtotaalReisUur)}</p>
             </div>
             <div>
               <p style={{ color: '#9D9D9D' }} className="text-xs">Totaal excl. BTW</p>
@@ -160,131 +141,94 @@ export default function FactuurFinalizePage() {
             </div>
           </div>
 
-          {displayGroups.map(tech => {
-            const subset = tech ? subsetFactuur(factuur, tech) : factuur
-            const ts = techStates[tech] ?? defaultTechState()
-            const techLabel = tech || undefined
-            const fileName = tech
-              ? `Factuur_VanWindenTechniek_${factuur.maand}_${factuur.jaar}_${tech.replace(/\s+/g, '_')}.pdf`
-              : `Factuur_VanWindenTechniek_${factuur.maand}_${factuur.jaar}.pdf`
+          {/* Acties */}
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
 
-            return (
-              <div key={tech || '__all__'} className="space-y-4">
-                {hasMultipleTechs && (
-                  <div className="flex items-center gap-3 pt-2">
-                    <div className="h-px flex-1" style={{ backgroundColor: '#4D4D4D' }} />
-                    <span className="text-sm font-semibold px-4 py-1.5 rounded-full" style={{ backgroundColor: '#3D3D3D', color: '#00E8FF', border: '1px solid #4D4D4D' }}>
-                      {tech}
-                    </span>
-                    <div className="h-px flex-1" style={{ backgroundColor: '#4D4D4D' }} />
-                  </div>
-                )}
-
-                {hasMultipleTechs && (
-                  <div className="rounded-xl px-4 py-3 flex gap-6" style={{ backgroundColor: '#333333' }}>
-                    <div>
-                      <p style={{ color: '#9D9D9D' }} className="text-xs">Werkbonnen</p>
-                      <p className="text-white font-semibold text-sm">{subset.klussen.length}</p>
-                    </div>
-                    <div>
-                      <p style={{ color: '#9D9D9D' }} className="text-xs">Totaal excl. BTW</p>
-                      <p className="text-white font-semibold text-sm">{formatCurrency(subset.totaal)}</p>
-                    </div>
-                    <div>
-                      <p style={{ color: '#9D9D9D' }} className="text-xs">Totaal incl. BTW</p>
-                      <p className="font-bold text-sm" style={{ color: '#00E8FF' }}>{formatCurrency(subset.totaalInclBTW)}</p>
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  {/* PDF Download */}
-                  <div className="rounded-xl p-5 flex flex-col gap-4" style={{ backgroundColor: '#3D3D3D' }}>
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(0, 232, 255, 0.1)' }}>
-                        <svg className="w-5 h-5" style={{ color: '#00E8FF' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <p className="text-white font-semibold text-sm">PDF Downloaden</p>
-                        <p style={{ color: '#9D9D9D' }} className="text-xs">Factuur als PDF opslaan</p>
-                      </div>
-                    </div>
-                    <FactuurActions factuur={subset} fileName={fileName} technicianName={techLabel} />
-                  </div>
-
-                  {/* Save to Supabase */}
-                  <div className="rounded-xl p-5 flex flex-col gap-4" style={{ backgroundColor: '#3D3D3D' }}>
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(0, 85, 255, 0.1)' }}>
-                        <svg className="w-5 h-5" style={{ color: '#0055FF' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                        </svg>
-                      </div>
-                      <div>
-                        <p className="text-white font-semibold text-sm">Opslaan in database</p>
-                        <p style={{ color: '#9D9D9D' }} className="text-xs">Factuur bewaren in Supabase</p>
-                      </div>
-                    </div>
-                    {ts.savedId ? (
-                      <div className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm" style={{ backgroundColor: 'rgba(0, 232, 255, 0.1)', color: '#00E8FF' }}>
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Opgeslagen
-                      </div>
-                    ) : (
-                      <>
-                        <button onClick={() => handleOpslaan(tech, subset)} disabled={ts.isSaving} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 disabled:opacity-50" style={{ backgroundColor: '#4D4D4D', color: '#ffffff' }}>
-                          {ts.isSaving ? (
-                            <><div className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#fff', borderTopColor: 'transparent' }} />Opslaan...</>
-                          ) : 'Opslaan in Supabase'}
-                        </button>
-                        {ts.saveError && <p className="text-xs" style={{ color: '#FF4444' }}>{ts.saveError}</p>}
-                      </>
-                    )}
-                  </div>
-
-                  {/* Snelstart */}
-                  <div className="rounded-xl p-5 flex flex-col gap-4" style={{ backgroundColor: '#3D3D3D' }}>
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(0, 85, 255, 0.1)' }}>
-                        <svg className="w-5 h-5" style={{ color: '#0055FF' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <p className="text-white font-semibold text-sm">Versturen naar Snelstart</p>
-                        <p style={{ color: '#9D9D9D' }} className="text-xs">Factuur aanmaken in boekhoudpakket</p>
-                      </div>
-                    </div>
-                    {ts.snelstartNummer ? (
-                      <div className="w-full flex flex-col items-center justify-center gap-1 px-4 py-3 rounded-lg text-sm" style={{ backgroundColor: 'rgba(0, 232, 255, 0.1)', color: '#00E8FF' }}>
-                        <div className="flex items-center gap-2">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          Aangemaakt in Snelstart
-                        </div>
-                        <p className="text-xs font-mono" style={{ color: '#9D9D9D' }}>Factuurnummer: {ts.snelstartNummer}</p>
-                      </div>
-                    ) : (
-                      <>
-                        <button onClick={() => handleSendSnelstart(tech, subset)} disabled={ts.isSending} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 disabled:opacity-50" style={{ backgroundColor: '#4D4D4D', color: '#ffffff' }}>
-                          {ts.isSending ? (
-                            <><div className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#fff', borderTopColor: 'transparent' }} />Versturen...</>
-                          ) : 'Versturen naar Snelstart'}
-                        </button>
-                        {ts.snelstartError && <p className="text-xs" style={{ color: '#FF4444' }}>{ts.snelstartError}</p>}
-                      </>
-                    )}
-                  </div>
+            {/* PDF Download */}
+            <div className="rounded-xl p-5 flex flex-col gap-4" style={{ backgroundColor: '#3D3D3D' }}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(0, 232, 255, 0.1)' }}>
+                  <svg className="w-5 h-5" style={{ color: '#00E8FF' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-white font-semibold text-sm">PDF Downloaden</p>
+                  <p style={{ color: '#9D9D9D' }} className="text-xs">Factuur als PDF opslaan</p>
                 </div>
               </div>
-            )
-          })}
+              <FactuurActions factuur={factuur} fileName={fileName} />
+            </div>
 
+            {/* Opslaan in Supabase */}
+            <div className="rounded-xl p-5 flex flex-col gap-4" style={{ backgroundColor: '#3D3D3D' }}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(0, 85, 255, 0.1)' }}>
+                  <svg className="w-5 h-5" style={{ color: '#0055FF' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-white font-semibold text-sm">Opslaan in database</p>
+                  <p style={{ color: '#9D9D9D' }} className="text-xs">Factuur bewaren in Supabase</p>
+                </div>
+              </div>
+              {savedId ? (
+                <div className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm" style={{ backgroundColor: 'rgba(0, 232, 255, 0.1)', color: '#00E8FF' }}>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Opgeslagen
+                </div>
+              ) : (
+                <>
+                  <button onClick={handleOpslaan} disabled={isSaving} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 disabled:opacity-50" style={{ backgroundColor: '#4D4D4D', color: '#ffffff' }}>
+                    {isSaving ? (
+                      <><div className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#fff', borderTopColor: 'transparent' }} />Opslaan...</>
+                    ) : 'Opslaan in Supabase'}
+                  </button>
+                  {saveError && <p className="text-xs" style={{ color: '#FF4444' }}>{saveError}</p>}
+                </>
+              )}
+            </div>
+
+            {/* Snelstart */}
+            <div className="rounded-xl p-5 flex flex-col gap-4" style={{ backgroundColor: '#3D3D3D' }}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(0, 85, 255, 0.1)' }}>
+                  <svg className="w-5 h-5" style={{ color: '#0055FF' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-white font-semibold text-sm">Versturen naar Snelstart</p>
+                  <p style={{ color: '#9D9D9D' }} className="text-xs">Factuur aanmaken in boekhoudpakket</p>
+                </div>
+              </div>
+              {snelstartNummer ? (
+                <div className="w-full flex flex-col items-center justify-center gap-1 px-4 py-3 rounded-lg text-sm" style={{ backgroundColor: 'rgba(0, 232, 255, 0.1)', color: '#00E8FF' }}>
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Aangemaakt in Snelstart
+                  </div>
+                  <p className="text-xs font-mono" style={{ color: '#9D9D9D' }}>Factuurnummer: {snelstartNummer}</p>
+                </div>
+              ) : (
+                <>
+                  <button onClick={handleSendSnelstart} disabled={isSending} className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 disabled:opacity-50" style={{ backgroundColor: '#4D4D4D', color: '#ffffff' }}>
+                    {isSending ? (
+                      <><div className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#fff', borderTopColor: 'transparent' }} />Versturen...</>
+                    ) : 'Versturen naar Snelstart'}
+                  </button>
+                  {snelstartError && <p className="text-xs" style={{ color: '#FF4444' }}>{snelstartError}</p>}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* PDF preview toggle */}
           <button
             onClick={() => setShowPreview(!showPreview)}
             className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200"

@@ -8,7 +8,7 @@ import {
   Image,
   StyleSheet,
 } from '@react-pdf/renderer'
-import type { Factuur } from '@/types'
+import type { Factuur, Klus, Rit } from '@/types'
 
 const BEDRIJF = {
   naam:    'Van Winden Techniek',
@@ -22,7 +22,9 @@ const BEDRIJF = {
   iban:    'NL41 KNAB 0407 2672 47',
 }
 
-const BETALINGSTERMIJN_DAGEN = 30
+const BETALINGSTERMIJN_DAGEN = 14
+
+// ─── Stijlen ─────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   page: {
@@ -94,6 +96,7 @@ const styles = StyleSheet.create({
   tableCell: { fontSize: 8.5, color: '#333333' },
   tableCellMuted: { fontSize: 7, color: '#888888', marginTop: 1.5 },
 
+  // Kolombreedte hoofdfactuur
   s_nr:      { width: '5%' },
   s_datum:   { width: '11%' },
   s_project: { width: '65%' },
@@ -151,6 +154,7 @@ const styles = StyleSheet.create({
   footerText: { fontSize: 7, color: '#999999' },
   pageNumber: { fontSize: 7, color: '#999999' },
 
+  // Bijlage pagina
   headerSmall: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -166,14 +170,71 @@ const styles = StyleSheet.create({
   headerSmallTitle: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#2D2D2D' },
   headerSmallSub: { fontSize: 7.5, color: '#888888', marginTop: 2 },
 
-  d_nr:      { width: '5%' },
-  d_datum:   { width: '11%' },
-  d_project: { width: '68%' },
-  d_totaal:  { width: '16%', textAlign: 'right' },
-  d_indent:  { width: '16%' },
+  // Bijlage kolommen
+  b_omschrijving: { width: '55%' },
+  b_codes:        { width: '20%' },
+  b_bedrag:       { width: '25%', textAlign: 'right' },
 
-  detailText: { fontSize: 7.5, color: '#777777', paddingBottom: 4 },
+  techSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 6,
+  },
+  techSectionLine: { flex: 1, borderBottomWidth: 0.5, borderBottomColor: '#CCCCCC' },
+  techSectionLabel: {
+    fontSize: 9,
+    fontFamily: 'Helvetica-Bold',
+    color: '#2D2D2D',
+    marginHorizontal: 8,
+    backgroundColor: '#00E8FF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 2,
+  },
+
+  dagHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#EEEEEE',
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    marginBottom: 2,
+    borderRadius: 2,
+  },
+  dagHeaderText: { fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#333333' },
+  dagHeaderTotaal: { marginLeft: 'auto', fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#333333' },
+
+  bijlageRow: {
+    flexDirection: 'row',
+    paddingVertical: 3,
+    paddingHorizontal: 4,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#F0F0F0',
+  },
+  bijlageCell: { fontSize: 7.5, color: '#333333' },
+  bijlageCellMuted: { fontSize: 6.5, color: '#999999', marginTop: 1 },
+  bijlageRitRow: {
+    flexDirection: 'row',
+    paddingVertical: 2,
+    paddingHorizontal: 4,
+    backgroundColor: '#FAFAFA',
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#F0F0F0',
+  },
+  bijlageRitCell: { fontSize: 7, color: '#888888' },
+
+  dagSubtotaalRow: {
+    flexDirection: 'row',
+    paddingVertical: 3,
+    paddingHorizontal: 4,
+    marginBottom: 6,
+    borderTopWidth: 0.5,
+    borderTopColor: '#CCCCCC',
+  },
+  dagSubtotaalCell: { fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: '#555555' },
 })
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatEuro(amount: number): string {
   return new Intl.NumberFormat('nl-NL', {
@@ -196,23 +257,100 @@ function addDays(days: number): string {
   return d.toLocaleDateString('nl-NL', { day: '2-digit', month: 'long', year: 'numeric' })
 }
 
+function datumLang(ddmmyyyy: string): string {
+  if (!ddmmyyyy) return ''
+  const [d, m, y] = ddmmyyyy.split('-')
+  const date = new Date(Number(y), Number(m) - 1, Number(d))
+  return date.toLocaleDateString('nl-NL', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+function datumKort(ddmmyyyy: string): string {
+  if (!ddmmyyyy) return ''
+  const [d, m, y] = ddmmyyyy.split('-')
+  const date = new Date(Number(y), Number(m) - 1, Number(d))
+  return date.toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+function datumSortKey(ddmmyyyy: string): string {
+  const [d, m, y] = ddmmyyyy.split('-')
+  return `${y}-${m}-${d}`
+}
+
+// ─── Gegroepeerde data ────────────────────────────────────────────────────────
+
+type DagData = {
+  datum: string
+  klussen: Klus[]
+  rits: Rit[]
+  totaalArbeid: number
+  totaalReis: number
+  totaalDag: number
+}
+
+type TechData = {
+  tech: string
+  dagen: DagData[]
+  totaalTech: number
+}
+
+function groepeerPerTechPerDag(factuur: Factuur): TechData[] {
+  const techMap = new Map<string, Map<string, DagData>>()
+
+  const ensureDag = (tech: string, datum: string): DagData => {
+    if (!techMap.has(tech)) techMap.set(tech, new Map())
+    const dagMap = techMap.get(tech)!
+    if (!dagMap.has(datum)) {
+      dagMap.set(datum, { datum, klussen: [], rits: [], totaalArbeid: 0, totaalReis: 0, totaalDag: 0 })
+    }
+    return dagMap.get(datum)!
+  }
+
+  for (const k of factuur.klussen) {
+    const dag = ensureDag(k.technicianName ?? '', k.datum)
+    dag.klussen.push(k)
+  }
+  for (const r of (factuur.rits ?? [])) {
+    const dag = ensureDag(r.technicianName ?? '', r.datum)
+    dag.rits.push(r)
+  }
+
+  return [...techMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([tech, dagMap]) => {
+    const dagen = [...dagMap.values()]
+      .sort((a, b) => datumSortKey(a.datum).localeCompare(datumSortKey(b.datum)))
+      .map(dag => {
+        const totaalArbeid = Math.round(dag.klussen.reduce((s, k) => s + k.arbeidskosten, 0) * 100) / 100
+        const totaalReis = Math.round(dag.rits.reduce((s, r) => s + r.totaal, 0) * 100) / 100
+        const totaalDag = Math.round((totaalArbeid + totaalReis) * 100) / 100
+        return { ...dag, totaalArbeid, totaalReis, totaalDag }
+      })
+    const totaalTech = Math.round(dagen.reduce((s, d) => s + d.totaalDag, 0) * 100) / 100
+    return { tech, dagen, totaalTech }
+  })
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
 interface FactuurDocumentProps {
   factuur: Factuur
   logoUrl?: string
   technicianName?: string
 }
 
-export default function FactuurDocument({ factuur, logoUrl, technicianName }: FactuurDocumentProps) {
-  const today = new Date().toLocaleDateString('nl-NL', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  })
-
+export default function FactuurDocument({ factuur, logoUrl }: FactuurDocumentProps) {
+  const today = new Date().toLocaleDateString('nl-NL', { day: '2-digit', month: 'long', year: 'numeric' })
   const factuurNummer = `FACT-${factuur.jaar}-${factuur.maand.toUpperCase().slice(0, 3)}-${Date.now().toString().slice(-4)}`
   const btw = factuur.btw ?? Math.round(factuur.totaal * 0.21 * 100) / 100
   const totaalInclBTW = factuur.totaalInclBTW ?? Math.round(factuur.totaal * 1.21 * 100) / 100
   const vervaldatum = addDays(BETALINGSTERMIJN_DAGEN)
+  const techDataList = groepeerPerTechPerDag(factuur)
+
+  // Factuurregels: één per dag per monteur
+  const factuurRegels = techDataList.flatMap(td =>
+    td.dagen.map(dag => ({ tech: td.tech, dag }))
+  ).sort((a, b) => {
+    const d = datumSortKey(a.dag.datum).localeCompare(datumSortKey(b.dag.datum))
+    return d !== 0 ? d : a.tech.localeCompare(b.tech)
+  })
 
   return (
     <Document
@@ -220,7 +358,7 @@ export default function FactuurDocument({ factuur, logoUrl, technicianName }: Fa
       author="Van Winden Techniek"
       subject="Maandelijkse onderhoud factuur"
     >
-      {/* ═══════════════ PAGINA 1 — Overzicht ════════════════ */}
+      {/* ══════════════ PAGINA 1 — Factuur ══════════════════ */}
       <Page size="A4" orientation="portrait" style={styles.page}>
 
         <View style={styles.header}>
@@ -247,7 +385,7 @@ export default function FactuurDocument({ factuur, logoUrl, technicianName }: Fa
               BTW-nr: {BEDRIJF.btwnr}
             </Text>
             <View style={styles.badge}>
-              <Text>{factuur.klussen.length} werkbonnen</Text>
+              <Text>{factuur.klussen.length} werkbonnen · {factuurRegels.length} dagregels</Text>
             </View>
           </View>
         </View>
@@ -261,7 +399,7 @@ export default function FactuurDocument({ factuur, logoUrl, technicianName }: Fa
         </View>
 
         <Text style={styles.subjectText}>
-          Betreft: Factuur onderhoudswerkzaamheden {factuur.maand} {factuur.jaar}{technicianName ? ` — ${technicianName}` : ''}
+          Betreft: Factuur onderhoudswerkzaamheden {factuur.maand} {factuur.jaar}
         </Text>
         <Text style={styles.intro}>
           Hierbij ontvangt u onze factuur voor de uitgevoerde onderhoudswerkzaamheden in {factuur.maand} {factuur.jaar}.
@@ -269,30 +407,37 @@ export default function FactuurDocument({ factuur, logoUrl, technicianName }: Fa
           Reiskosten worden berekend vanuit {BEDRIJF.stad}.
         </Text>
 
+        {/* Tabel: één rij per dag per monteur */}
         <View>
           <View style={styles.tableHeader}>
             <Text style={[styles.tableHeaderCell, styles.s_nr]}>#</Text>
             <Text style={[styles.tableHeaderCell, styles.s_datum]}>Datum</Text>
-            <Text style={[styles.tableHeaderCell, styles.s_project]}>Project / Locatie</Text>
+            <Text style={[styles.tableHeaderCell, styles.s_project]}>Aangenomen werk</Text>
             <Text style={[styles.tableHeaderCell, styles.s_totaal]}>Totaal excl. BTW</Text>
           </View>
-          {factuur.klussen.map((klus, i) => (
-            <View key={klus.id} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
-              <Text style={[styles.tableCell, styles.s_nr, { color: '#AAAAAA' }]}>
-                {String(i + 1).padStart(2, '0')}
-              </Text>
-              <Text style={[styles.tableCell, styles.s_datum]}>{klus.datum}</Text>
-              <View style={styles.s_project}>
-                <Text style={[styles.tableCell, { fontFamily: 'Helvetica-Bold', color: '#1A1A1A' }]}>
-                  {klus.projectNaam.length > 55 ? klus.projectNaam.slice(0, 55) + '…' : klus.projectNaam}
+
+          {factuurRegels.map(({ tech, dag }, i) => {
+            const werkbonnen = dag.klussen.map(k => k.werkbonNummer).filter(Boolean).join(', ')
+            return (
+              <View key={`${dag.datum}-${tech}`} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]}>
+                <Text style={[styles.tableCell, styles.s_nr, { color: '#AAAAAA' }]}>
+                  {String(i + 1).padStart(2, '0')}
                 </Text>
-                <Text style={styles.tableCellMuted}>{klus.locatie} · {klus.werkbonNummer}</Text>
+                <Text style={[styles.tableCell, styles.s_datum]}>{dag.datum}</Text>
+                <View style={styles.s_project}>
+                  <Text style={[styles.tableCell, { fontFamily: 'Helvetica-Bold', color: '#1A1A1A' }]}>
+                    {datumKort(dag.datum)} — {tech}
+                  </Text>
+                  {werkbonnen ? (
+                    <Text style={styles.tableCellMuted}>{werkbonnen}</Text>
+                  ) : null}
+                </View>
+                <Text style={[styles.tableCell, styles.s_totaal, { fontFamily: 'Helvetica-Bold' }]}>
+                  {formatEuro(dag.totaalDag)}
+                </Text>
               </View>
-              <Text style={[styles.tableCell, styles.s_totaal, { fontFamily: 'Helvetica-Bold' }]}>
-                {formatEuro(klus.totaal)}
-              </Text>
-            </View>
-          ))}
+            )
+          })}
         </View>
 
         <View style={styles.totalsBlock}>
@@ -325,7 +470,7 @@ export default function FactuurDocument({ factuur, logoUrl, technicianName }: Fa
 
         <View style={styles.notes}>
           <Text style={styles.notesText}>
-            Betalingstermijn: {BETALINGSTERMIJN_DAGEN} dagen · Vervaldatum: {vervaldatum} · IBAN: {BEDRIJF.iban} · Reiskosten vanuit {BEDRIJF.stad} (retour) · Kilometervergoeding: €0,50/km · BTW: 21%
+            Betalingstermijn: {BETALINGSTERMIJN_DAGEN} dagen · Vervaldatum: {vervaldatum} · IBAN: {BEDRIJF.iban} · Reiskosten vanuit {BEDRIJF.stad} · Kilometervergoeding: €0,50/km · BTW: 21%
           </Text>
         </View>
 
@@ -335,7 +480,7 @@ export default function FactuurDocument({ factuur, logoUrl, technicianName }: Fa
         </View>
       </Page>
 
-      {/* ═══════════════ PAGINA 2 — Specificaties ════════════ */}
+      {/* ══════════════ PAGINA 2 — Bijlage specificaties ═══════════ */}
       <Page size="A4" orientation="portrait" style={styles.page}>
 
         <View style={styles.headerSmall}>
@@ -346,53 +491,110 @@ export default function FactuurDocument({ factuur, logoUrl, technicianName }: Fa
             }
           </View>
           <View style={styles.headerSmallRight}>
-            <Text style={styles.headerSmallTitle}>Specificaties per werkbon</Text>
+            <Text style={styles.headerSmallTitle}>Bijlage — Specificaties per dag</Text>
             <Text style={styles.headerSmallSub}>{factuur.maand} {factuur.jaar} · {factuurNummer}</Text>
           </View>
         </View>
 
-        <View>
-          <View style={styles.tableHeader}>
-            <Text style={[styles.tableHeaderCell, styles.d_nr]}>#</Text>
-            <Text style={[styles.tableHeaderCell, styles.d_datum]}>Datum</Text>
-            <Text style={[styles.tableHeaderCell, styles.d_project]}>Project / Locatie</Text>
-            <Text style={[styles.tableHeaderCell, styles.d_totaal]}>Totaal excl. BTW</Text>
-          </View>
-
-          {factuur.klussen.map((klus, i) => (
-            <View key={klus.id} style={i % 2 === 1 ? styles.tableRowAlt : {}}>
-              <View style={[styles.tableRow, { borderBottomWidth: 0, paddingBottom: 2 }]}>
-                <Text style={[styles.tableCell, styles.d_nr, { color: '#AAAAAA' }]}>
-                  {String(i + 1).padStart(2, '0')}
-                </Text>
-                <Text style={[styles.tableCell, styles.d_datum]}>{klus.datum}</Text>
-                <View style={styles.d_project}>
-                  <Text style={[styles.tableCell, { fontFamily: 'Helvetica-Bold', color: '#1A1A1A' }]}>
-                    {klus.projectNaam.length > 58 ? klus.projectNaam.slice(0, 58) + '…' : klus.projectNaam}
-                  </Text>
-                  <Text style={styles.tableCellMuted}>{klus.locatie} · {klus.werkbonNummer}</Text>
-                </View>
-                <Text style={[styles.tableCell, styles.d_totaal, { fontFamily: 'Helvetica-Bold' }]}>
-                  {formatEuro(klus.totaal)}
-                </Text>
-              </View>
-              <View style={{ flexDirection: 'row', paddingHorizontal: 4, paddingBottom: 5, borderBottomWidth: 0.5, borderBottomColor: '#EBEBEB' }}>
-                <View style={styles.d_indent} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.detailText}>
-                    Arbeidsuren: {formatNL(klus.duur)} u
-                    {'   ·   '}
-                    Kilometers: {formatNL(klus.afstandKm, 0)} km
-                    {'   ·   '}
-                    Reistijd: {formatNL(klus.reisUren * 2, 2)} u
-                    {klus.rivgToeslag ? `   ·   Schoonmaak en Diversen: ${formatEuro(klus.rivgToeslag)}` : ''}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          ))}
+        {/* Bijlage tabelheader */}
+        <View style={styles.tableHeader}>
+          <Text style={[styles.tableHeaderCell, styles.b_omschrijving]}>Omschrijving</Text>
+          <Text style={[styles.tableHeaderCell, styles.b_codes]}>Werkbon / Project</Text>
+          <Text style={[styles.tableHeaderCell, styles.b_bedrag]}>Bedrag excl. BTW</Text>
         </View>
 
+        {/* Per monteur per dag */}
+        {techDataList.map(({ tech, dagen }) => (
+          <View key={tech}>
+            {/* Monteur sectieheader */}
+            <View style={styles.techSectionHeader}>
+              <View style={styles.techSectionLine} />
+              <Text style={styles.techSectionLabel}>{tech}</Text>
+              <View style={styles.techSectionLine} />
+            </View>
+
+            {dagen.map(dag => {
+              const totaalDagKm = dag.rits.reduce((s, r) => s + r.afstandKm, 0)
+              const totaalDagReisUur = dag.rits.reduce((s, r) => s + r.reisUren, 0)
+              const totaalDagReisKm = dag.rits.reduce((s, r) => s + r.reiskostenKm, 0)
+              const totaalDagReisUur_ = dag.rits.reduce((s, r) => s + r.reiskostenUur, 0)
+
+              return (
+                <View key={dag.datum}>
+                  {/* Dagheader */}
+                  <View style={styles.dagHeader}>
+                    <Text style={styles.dagHeaderText}>{datumLang(dag.datum)}</Text>
+                    <Text style={styles.dagHeaderTotaal}>{formatEuro(dag.totaalDag)}</Text>
+                  </View>
+
+                  {/* Klussen */}
+                  {dag.klussen.map((klus, ki) => (
+                    <View key={klus.id} style={[styles.bijlageRow, ki % 2 === 1 ? { backgroundColor: '#FAFAFA' } : {}]}>
+                      <View style={styles.b_omschrijving}>
+                        <Text style={styles.bijlageCell}>
+                          {klus.werkzaamhedenOmschrijving || klus.projectNaam}
+                        </Text>
+                        {klus.rivgToeslag ? (
+                          <Text style={[styles.bijlageCellMuted, { color: '#555555' }]}>
+                            + Schoonmaak en Diversen: {formatEuro(klus.rivgToeslag)}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <View style={styles.b_codes}>
+                        <Text style={styles.bijlageCellMuted}>{klus.werkbonNummer}</Text>
+                        <Text style={styles.bijlageCellMuted}>{klus.projectCode}</Text>
+                      </View>
+                      <View style={styles.b_bedrag}>
+                        <Text style={[styles.bijlageCell, { textAlign: 'right', fontFamily: 'Helvetica-Bold' }]}>
+                          {formatEuro(klus.arbeidskosten)}
+                        </Text>
+                        <Text style={[styles.bijlageCellMuted, { textAlign: 'right' }]}>
+                          {formatNL(klus.duur)} u × €{klus.uurtarief}/u
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+
+                  {/* Reiskosten dag-totaal */}
+                  {dag.rits.length > 0 && (
+                    <View style={styles.bijlageRitRow}>
+                      <View style={styles.b_omschrijving}>
+                        <Text style={styles.bijlageRitCell}>
+                          Reiskosten: {formatNL(totaalDagKm, 0)} km · {formatNL(totaalDagReisUur)} u reistijd
+                        </Text>
+                        <Text style={[styles.bijlageRitCell, { color: '#BBBBBB', marginTop: 1 }]}>
+                          {dag.rits.map(r => `${r.van} → ${r.naar}`).join(' · ')}
+                        </Text>
+                      </View>
+                      <View style={styles.b_codes}>
+                        <Text style={styles.bijlageRitCell}>km-vergoeding</Text>
+                        <Text style={styles.bijlageRitCell}>reiskosten</Text>
+                      </View>
+                      <View style={styles.b_bedrag}>
+                        <Text style={[styles.bijlageRitCell, { textAlign: 'right' }]}>
+                          {formatEuro(totaalDagReisKm)}
+                        </Text>
+                        <Text style={[styles.bijlageRitCell, { textAlign: 'right' }]}>
+                          {formatEuro(totaalDagReisUur_)}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Dag subtotaal */}
+                  <View style={styles.dagSubtotaalRow}>
+                    <Text style={[styles.dagSubtotaalCell, { flex: 1 }]} />
+                    <Text style={[styles.dagSubtotaalCell, { textAlign: 'right' }]}>
+                      Dag totaal: {formatEuro(dag.totaalDag)}
+                    </Text>
+                  </View>
+                </View>
+              )
+            })}
+          </View>
+        ))}
+
+        {/* Eindtotalen bijlage */}
         <View style={[styles.totalsBlock, { marginTop: 10 }]}>
           <View style={styles.totalsRow}>
             <Text style={styles.totalsLabel}>Arbeidskosten</Text>

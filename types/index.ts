@@ -1,3 +1,17 @@
+export interface Rit {
+  id: string
+  datum: string         // DD-MM-YYYY
+  technicianName?: string
+  van: string           // 'Naaldwijk' of locatie
+  naar: string          // locatie of 'Naaldwijk'
+  afstandKm: number     // one-way km voor dit segment
+  reisUren: number      // one-way reistijd in uren
+  reiskostenKm: number  // afstandKm * 0.50
+  reiskostenUur: number // reisUren * 55 * 1.15
+  totaal: number
+  locatieError?: string
+}
+
 export interface Klus {
   id: string
   dag: string
@@ -41,6 +55,7 @@ export interface Factuur {
   maand: string
   jaar: number
   klussen: Klus[]
+  rits?: Rit[]
   subtotaalArbeid: number
   subtotaalReisKm: number
   subtotaalReisUur: number

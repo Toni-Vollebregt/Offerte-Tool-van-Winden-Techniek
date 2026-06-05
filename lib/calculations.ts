@@ -1,4 +1,4 @@
-import type { Klus } from '@/types'
+import type { Klus, Rit } from '@/types'
 
 const KM_TARIEF = 0.50
 const REIS_UUR_TARIEF = 55
@@ -41,14 +41,45 @@ export function berekenKlus(
   }
 }
 
-export function berekenOfferteTotalen(klussen: Klus[]) {
-  const subtotaalArbeid = Math.round(klussen.reduce((sum, k) => sum + k.arbeidskosten, 0) * 100) / 100
-  const subtotaalReisKm = Math.round(klussen.reduce((sum, k) => sum + k.reiskostenKm, 0) * 100) / 100
-  const subtotaalReisUur = Math.round(klussen.reduce((sum, k) => sum + k.reiskostenUur, 0) * 100) / 100
+// Berekent één reisrit (één richting). Geen * 2 factor — elke rit is een eigen segment.
+export function berekenRit(
+  datum: string,
+  van: string,
+  naar: string,
+  afstandKm: number,
+  reisUren: number,
+  technicianName?: string,
+  locatieError?: string
+): Rit {
+  const reiskostenKm = Math.round(afstandKm * KM_TARIEF * 100) / 100
+  const reiskostenUur = Math.round(reisUren * REIS_UUR_TARIEF * FILEMARGE * 100) / 100
+  return {
+    id: crypto.randomUUID(),
+    datum,
+    technicianName,
+    van,
+    naar,
+    afstandKm,
+    reisUren,
+    reiskostenKm,
+    reiskostenUur,
+    totaal: Math.round((reiskostenKm + reiskostenUur) * 100) / 100,
+    locatieError,
+  }
+}
+
+// Backward compatible: als rits leeg is, worden reiskosten uit klussen gelezen (offerte flow).
+export function berekenOfferteTotalen(klussen: Klus[], rits: Rit[] = []) {
+  const subtotaalArbeid = Math.round(klussen.reduce((s, k) => s + k.arbeidskosten, 0) * 100) / 100
+  const subtotaalReisKm = rits.length > 0
+    ? Math.round(rits.reduce((s, r) => s + r.reiskostenKm, 0) * 100) / 100
+    : Math.round(klussen.reduce((s, k) => s + k.reiskostenKm, 0) * 100) / 100
+  const subtotaalReisUur = rits.length > 0
+    ? Math.round(rits.reduce((s, r) => s + r.reiskostenUur, 0) * 100) / 100
+    : Math.round(klussen.reduce((s, k) => s + k.reiskostenUur, 0) * 100) / 100
   const totaal = Math.round((subtotaalArbeid + subtotaalReisKm + subtotaalReisUur) * 100) / 100
   const btw = Math.round(totaal * 0.21 * 100) / 100
   const totaalInclBTW = Math.round(totaal * 1.21 * 100) / 100
-
   return { subtotaalArbeid, subtotaalReisKm, subtotaalReisUur, totaal, btw, totaalInclBTW }
 }
 
