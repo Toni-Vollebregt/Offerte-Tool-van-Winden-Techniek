@@ -8,7 +8,7 @@ import {
   Image,
   StyleSheet,
 } from '@react-pdf/renderer'
-import type { Factuur, Klus, Rit } from '@/types'
+import type { Factuur, Klus, Rit, ExtraRegel } from '@/types'
 
 const BEDRIJF = {
   naam:    'Van Winden Techniek',
@@ -154,84 +154,6 @@ const styles = StyleSheet.create({
   footerText: { fontSize: 7, color: '#999999' },
   pageNumber: { fontSize: 7, color: '#999999' },
 
-  // Bijlage pagina
-  headerSmall: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#00E8FF',
-  },
-  logoSmall: { width: 110, height: 34, objectFit: 'contain' },
-  companyNameSmall: { fontSize: 12, fontFamily: 'Helvetica-Bold', color: '#2D2D2D' },
-  headerSmallRight: { alignItems: 'flex-end' },
-  headerSmallTitle: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#2D2D2D' },
-  headerSmallSub: { fontSize: 7.5, color: '#888888', marginTop: 2 },
-
-  // Bijlage kolommen
-  b_omschrijving: { width: '55%' },
-  b_codes:        { width: '20%' },
-  b_bedrag:       { width: '25%', textAlign: 'right' },
-
-  techSectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 6,
-  },
-  techSectionLine: { flex: 1, borderBottomWidth: 0.5, borderBottomColor: '#CCCCCC' },
-  techSectionLabel: {
-    fontSize: 9,
-    fontFamily: 'Helvetica-Bold',
-    color: '#2D2D2D',
-    marginHorizontal: 8,
-    backgroundColor: '#00E8FF',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 2,
-  },
-
-  dagHeader: {
-    flexDirection: 'row',
-    backgroundColor: '#EEEEEE',
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-    marginBottom: 2,
-    borderRadius: 2,
-  },
-  dagHeaderText: { fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#333333' },
-  dagHeaderTotaal: { marginLeft: 'auto', fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#333333' },
-
-  bijlageRow: {
-    flexDirection: 'row',
-    paddingVertical: 3,
-    paddingHorizontal: 4,
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#F0F0F0',
-  },
-  bijlageCell: { fontSize: 7.5, color: '#333333' },
-  bijlageCellMuted: { fontSize: 6.5, color: '#999999', marginTop: 1 },
-  bijlageRitRow: {
-    flexDirection: 'row',
-    paddingVertical: 2,
-    paddingHorizontal: 4,
-    backgroundColor: '#FAFAFA',
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#F0F0F0',
-  },
-  bijlageRitCell: { fontSize: 7, color: '#888888' },
-
-  dagSubtotaalRow: {
-    flexDirection: 'row',
-    paddingVertical: 3,
-    paddingHorizontal: 4,
-    marginBottom: 6,
-    borderTopWidth: 0.5,
-    borderTopColor: '#CCCCCC',
-  },
-  dagSubtotaalCell: { fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: '#555555' },
 })
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -282,8 +204,10 @@ type DagData = {
   datum: string
   klussen: Klus[]
   rits: Rit[]
+  extraRegels: ExtraRegel[]
   totaalArbeid: number
   totaalReis: number
+  totaalExtra: number
   totaalDag: number
 }
 
@@ -300,19 +224,14 @@ function groepeerPerTechPerDag(factuur: Factuur): TechData[] {
     if (!techMap.has(tech)) techMap.set(tech, new Map())
     const dagMap = techMap.get(tech)!
     if (!dagMap.has(datum)) {
-      dagMap.set(datum, { datum, klussen: [], rits: [], totaalArbeid: 0, totaalReis: 0, totaalDag: 0 })
+      dagMap.set(datum, { datum, klussen: [], rits: [], extraRegels: [], totaalArbeid: 0, totaalReis: 0, totaalExtra: 0, totaalDag: 0 })
     }
     return dagMap.get(datum)!
   }
 
-  for (const k of factuur.klussen) {
-    const dag = ensureDag(k.technicianName ?? '', k.datum)
-    dag.klussen.push(k)
-  }
-  for (const r of (factuur.rits ?? [])) {
-    const dag = ensureDag(r.technicianName ?? '', r.datum)
-    dag.rits.push(r)
-  }
+  for (const k of factuur.klussen) ensureDag(k.technicianName ?? '', k.datum).klussen.push(k)
+  for (const r of (factuur.rits ?? [])) ensureDag(r.technicianName ?? '', r.datum).rits.push(r)
+  for (const e of (factuur.extraRegels ?? [])) ensureDag(e.technicianName ?? '', e.datum).extraRegels.push(e)
 
   return [...techMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([tech, dagMap]) => {
     const dagen = [...dagMap.values()]
@@ -320,8 +239,9 @@ function groepeerPerTechPerDag(factuur: Factuur): TechData[] {
       .map(dag => {
         const totaalArbeid = Math.round(dag.klussen.reduce((s, k) => s + k.arbeidskosten, 0) * 100) / 100
         const totaalReis = Math.round(dag.rits.reduce((s, r) => s + r.totaal, 0) * 100) / 100
-        const totaalDag = Math.round((totaalArbeid + totaalReis) * 100) / 100
-        return { ...dag, totaalArbeid, totaalReis, totaalDag }
+        const totaalExtra = Math.round(dag.extraRegels.reduce((s, e) => s + e.totaal, 0) * 100) / 100
+        const totaalDag = Math.round((totaalArbeid + totaalReis + totaalExtra) * 100) / 100
+        return { ...dag, totaalArbeid, totaalReis, totaalExtra, totaalDag }
       })
     const totaalTech = Math.round(dagen.reduce((s, d) => s + d.totaalDag, 0) * 100) / 100
     return { tech, dagen, totaalTech }
@@ -453,6 +373,12 @@ export default function FactuurDocument({ factuur, logoUrl }: FactuurDocumentPro
             <Text style={styles.totalsLabel}>Reiskosten</Text>
             <Text style={styles.totalsValue}>{formatEuro(factuur.subtotaalReisUur)}</Text>
           </View>
+          {(factuur.subtotaalExtra ?? 0) > 0 && (
+            <View style={styles.totalsRow}>
+              <Text style={styles.totalsLabel}>Extra posten</Text>
+              <Text style={styles.totalsValue}>{formatEuro(factuur.subtotaalExtra ?? 0)}</Text>
+            </View>
+          )}
           <View style={styles.totalsDivider} />
           <View style={styles.totalsRow}>
             <Text style={styles.totalsLabel}>Totaal excl. BTW</Text>
@@ -480,146 +406,6 @@ export default function FactuurDocument({ factuur, logoUrl }: FactuurDocumentPro
         </View>
       </Page>
 
-      {/* ══════════════ PAGINA 2 — Bijlage specificaties ═══════════ */}
-      <Page size="A4" orientation="portrait" style={styles.page}>
-
-        <View style={styles.headerSmall}>
-          <View>
-            {logoUrl
-              ? <Image src={logoUrl} style={styles.logoSmall} />
-              : <Text style={styles.companyNameSmall}>{BEDRIJF.naam.toUpperCase()}</Text>
-            }
-          </View>
-          <View style={styles.headerSmallRight}>
-            <Text style={styles.headerSmallTitle}>Bijlage — Specificaties per dag</Text>
-            <Text style={styles.headerSmallSub}>Week {factuur.weekNummer} {factuur.jaar} · {factuurNummer}</Text>
-          </View>
-        </View>
-
-        {/* Bijlage tabelheader */}
-        <View style={styles.tableHeader}>
-          <Text style={[styles.tableHeaderCell, styles.b_omschrijving]}>Omschrijving</Text>
-          <Text style={[styles.tableHeaderCell, styles.b_codes]}>Werkbon / Project</Text>
-          <Text style={[styles.tableHeaderCell, styles.b_bedrag]}>Bedrag excl. BTW</Text>
-        </View>
-
-        {/* Per monteur per dag */}
-        {techDataList.map(({ tech, dagen }) => (
-          <View key={tech}>
-            {/* Monteur sectieheader */}
-            <View style={styles.techSectionHeader}>
-              <View style={styles.techSectionLine} />
-              <Text style={styles.techSectionLabel}>{tech}</Text>
-              <View style={styles.techSectionLine} />
-            </View>
-
-            {dagen.map(dag => {
-              const totaalDagKm = dag.rits.reduce((s, r) => s + r.afstandKm, 0)
-              const totaalDagReisUur = dag.rits.reduce((s, r) => s + r.reisUren, 0)
-              const totaalDagReisKm = dag.rits.reduce((s, r) => s + r.reiskostenKm, 0)
-              const totaalDagReisUur_ = dag.rits.reduce((s, r) => s + r.reiskostenUur, 0)
-
-              return (
-                <View key={dag.datum}>
-                  {/* Dagheader */}
-                  <View style={styles.dagHeader}>
-                    <Text style={styles.dagHeaderText}>{datumLang(dag.datum)}</Text>
-                    <Text style={styles.dagHeaderTotaal}>{formatEuro(dag.totaalDag)}</Text>
-                  </View>
-
-                  {/* Klussen */}
-                  {dag.klussen.map((klus, ki) => (
-                    <View key={klus.id} style={[styles.bijlageRow, ki % 2 === 1 ? { backgroundColor: '#FAFAFA' } : {}]}>
-                      <View style={styles.b_omschrijving}>
-                        <Text style={styles.bijlageCell}>
-                          {klus.werkzaamhedenOmschrijving || klus.projectNaam}
-                        </Text>
-                        {klus.rivgToeslag ? (
-                          <Text style={[styles.bijlageCellMuted, { color: '#555555' }]}>
-                            + Schoonmaak en Diversen: {formatEuro(klus.rivgToeslag)}
-                          </Text>
-                        ) : null}
-                      </View>
-                      <View style={styles.b_codes}>
-                        <Text style={styles.bijlageCellMuted}>{klus.werkbonNummer}</Text>
-                        <Text style={styles.bijlageCellMuted}>{klus.projectCode}</Text>
-                      </View>
-                      <View style={styles.b_bedrag}>
-                        <Text style={[styles.bijlageCell, { textAlign: 'right', fontFamily: 'Helvetica-Bold' }]}>
-                          {formatEuro(klus.arbeidskosten)}
-                        </Text>
-                        <Text style={[styles.bijlageCellMuted, { textAlign: 'right' }]}>
-                          {formatNL(klus.duur)} u × €{klus.uurtarief}/u
-                        </Text>
-                      </View>
-                    </View>
-                  ))}
-
-                  {/* Reiskosten dag-totaal */}
-                  {dag.rits.length > 0 && (
-                    <View style={styles.bijlageRitRow}>
-                      <View style={styles.b_omschrijving}>
-                        <Text style={styles.bijlageRitCell}>
-                          Reiskosten: {formatNL(totaalDagKm, 0)} km · {formatNL(totaalDagReisUur)} u reistijd
-                        </Text>
-                        <Text style={[styles.bijlageRitCell, { color: '#BBBBBB', marginTop: 1 }]}>
-                          {dag.rits.map(r => `${r.van} → ${r.naar}`).join(' · ')}
-                        </Text>
-                      </View>
-                      <View style={styles.b_codes}>
-                        <Text style={styles.bijlageRitCell}>km-vergoeding</Text>
-                        <Text style={styles.bijlageRitCell}>reiskosten</Text>
-                      </View>
-                      <View style={styles.b_bedrag}>
-                        <Text style={[styles.bijlageRitCell, { textAlign: 'right' }]}>
-                          {formatEuro(totaalDagReisKm)}
-                        </Text>
-                        <Text style={[styles.bijlageRitCell, { textAlign: 'right' }]}>
-                          {formatEuro(totaalDagReisUur_)}
-                        </Text>
-                      </View>
-                    </View>
-                  )}
-
-                  {/* Dag subtotaal */}
-                  <View style={styles.dagSubtotaalRow}>
-                    <Text style={[styles.dagSubtotaalCell, { flex: 1 }]} />
-                    <Text style={[styles.dagSubtotaalCell, { textAlign: 'right' }]}>
-                      Dag totaal: {formatEuro(dag.totaalDag)}
-                    </Text>
-                  </View>
-                </View>
-              )
-            })}
-          </View>
-        ))}
-
-        {/* Eindtotalen bijlage */}
-        <View style={[styles.totalsBlock, { marginTop: 10 }]}>
-          <View style={styles.totalsRow}>
-            <Text style={styles.totalsLabel}>Arbeidskosten</Text>
-            <Text style={styles.totalsValue}>{formatEuro(factuur.subtotaalArbeid)}</Text>
-          </View>
-          <View style={styles.totalsRow}>
-            <Text style={styles.totalsLabel}>Kilometervergoeding</Text>
-            <Text style={styles.totalsValue}>{formatEuro(factuur.subtotaalReisKm)}</Text>
-          </View>
-          <View style={styles.totalsRow}>
-            <Text style={styles.totalsLabel}>Reiskosten</Text>
-            <Text style={styles.totalsValue}>{formatEuro(factuur.subtotaalReisUur)}</Text>
-          </View>
-          <View style={styles.totalsDivider} />
-          <View style={styles.grandTotalRow}>
-            <Text style={styles.grandTotalLabel}>TOTAAL incl. BTW</Text>
-            <Text style={styles.grandTotalValue}>{formatEuro(totaalInclBTW)}</Text>
-          </View>
-        </View>
-
-        <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>{BEDRIJF.naam} · {BEDRIJF.stad} · {factuurNummer}</Text>
-          <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `Pagina ${pageNumber} van ${totalPages}`} />
-        </View>
-      </Page>
     </Document>
   )
 }

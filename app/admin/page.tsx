@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import Header from '@/components/Header'
-import type { Offerte, Tarief } from '@/types'
+import type { Offerte, Factuur, Tarief } from '@/types'
 import { formatCurrency } from '@/lib/calculations'
 
 type OfferteSaved = {
@@ -14,47 +14,93 @@ type OfferteSaved = {
   aangemaakt: string
 }
 
+type FactuurSaved = {
+  id: string
+  maand: string
+  jaar: number
+  totaal: number
+  data: Factuur
+  aangemaakt: string
+}
+
+type ReisInstellingen = {
+  km_tarief: string
+  reis_uur_tarief: string
+  filemarge: string
+}
+
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('nl-NL', {
     day: '2-digit', month: '2-digit', year: 'numeric',
   })
 }
 
+const inputStyle = {
+  backgroundColor: '#2D2D2D',
+  borderColor: '#4D4D4D',
+  color: '#ffffff',
+}
+
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [password, setPassword] = useState('')
   const [authError, setAuthError] = useState('')
-  const [activeTab, setActiveTab] = useState<'tarieven' | 'offertes'>('tarieven')
+  const [activeTab, setActiveTab] = useState<'tarieven' | 'offertes' | 'facturen'>('tarieven')
 
   // Tarieven state
   const [tarieven, setTarieven] = useState<Tarief[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoadingTarieven, setIsLoadingTarieven] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [editValues, setEditValues] = useState<{ omschrijving: string; uurtarief: number }>({
-    omschrijving: '',
-    uurtarief: 0,
-  })
-  const [newTarief, setNewTarief] = useState({ code: '', omschrijving: '', uurtarief: 60 })
-  const [saveError, setSaveError] = useState('')
-  const [saveSuccess, setSaveSuccess] = useState('')
+  const [editValues, setEditValues] = useState<{ omschrijving: string; uurtarief: number }>({ omschrijving: '', uurtarief: 0 })
+  const [newTarief, setNewTarief] = useState({ omschrijving: '', uurtarief: 60 })
+  const [tarievenError, setTarievenError] = useState('')
+  const [tarievenSuccess, setTarievenSuccess] = useState('')
+
+  // Reisinstellingen state
+  const [reisInstellingen, setReisInstellingen] = useState<ReisInstellingen>({ km_tarief: '0.50', reis_uur_tarief: '55', filemarge: '1.15' })
+  const [isLoadingReis, setIsLoadingReis] = useState(false)
+  const [savingReisKey, setSavingReisKey] = useState<string | null>(null)
+  const [reisError, setReisError] = useState('')
+  const [reisSuccess, setReisSuccess] = useState('')
 
   // Offertes state
   const [offertes, setOffertes] = useState<OfferteSaved[]>([])
   const [isLoadingOffertes, setIsLoadingOffertes] = useState(false)
   const [offertesLoaded, setOffertesLoaded] = useState(false)
   const [offertesError, setOffertesError] = useState('')
-  const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [downloadingOfferte, setDownloadingOfferte] = useState<string | null>(null)
+
+  // Facturen state
+  const [facturen, setFacturen] = useState<FactuurSaved[]>([])
+  const [isLoadingFacturen, setIsLoadingFacturen] = useState(false)
+  const [facturenLoaded, setFacturenLoaded] = useState(false)
+  const [facturenError, setFacturenError] = useState('')
+  const [downloadingFactuur, setDownloadingFactuur] = useState<string | null>(null)
+  const [downloadingBijlage, setDownloadingBijlage] = useState<string | null>(null)
 
   const fetchTarieven = async () => {
-    setIsLoading(true)
+    setIsLoadingTarieven(true)
     try {
       const response = await fetch('/api/tarieven')
       const data = await response.json()
       setTarieven(data)
     } catch {
-      setSaveError('Fout bij ophalen tarieven.')
+      setTarievenError('Fout bij ophalen tarieven.')
     } finally {
-      setIsLoading(false)
+      setIsLoadingTarieven(false)
+    }
+  }
+
+  const fetchReisInstellingen = async () => {
+    setIsLoadingReis(true)
+    try {
+      const response = await fetch('/api/instellingen')
+      const data = await response.json()
+      setReisInstellingen(prev => ({ ...prev, ...data }))
+    } catch {
+      // gebruik defaults
+    } finally {
+      setIsLoadingReis(false)
     }
   }
 
@@ -63,10 +109,7 @@ export default function AdminPage() {
     setOffertesError('')
     try {
       const response = await fetch('/api/offertes')
-      if (!response.ok) {
-        setOffertesError('Ophalen offertes mislukt.')
-        return
-      }
+      if (!response.ok) { setOffertesError('Ophalen mislukt.'); return }
       const data = await response.json()
       setOffertes(Array.isArray(data) ? data : [])
       setOffertesLoaded(true)
@@ -77,27 +120,39 @@ export default function AdminPage() {
     }
   }
 
+  const fetchFacturen = async () => {
+    setIsLoadingFacturen(true)
+    setFacturenError('')
+    try {
+      const response = await fetch('/api/facturen')
+      if (!response.ok) { setFacturenError('Ophalen mislukt.'); return }
+      const data = await response.json()
+      setFacturen(Array.isArray(data) ? data : [])
+      setFacturenLoaded(true)
+    } catch {
+      setFacturenError('Verbindingsfout — probeer opnieuw.')
+    } finally {
+      setIsLoadingFacturen(false)
+    }
+  }
+
   useEffect(() => {
     if (isAuthenticated) {
       fetchTarieven()
+      fetchReisInstellingen()
     }
   }, [isAuthenticated])
 
   useEffect(() => {
-    if (activeTab === 'offertes' && isAuthenticated && !offertesLoaded) {
-      fetchOffertes()
-    }
-  }, [activeTab, isAuthenticated, offertesLoaded])
+    if (activeTab === 'offertes' && isAuthenticated && !offertesLoaded) fetchOffertes()
+    if (activeTab === 'facturen' && isAuthenticated && !facturenLoaded) fetchFacturen()
+  }, [activeTab, isAuthenticated, offertesLoaded, facturenLoaded])
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
     const adminPass = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'admin123'
-    if (password === adminPass) {
-      setIsAuthenticated(true)
-      setAuthError('')
-    } else {
-      setAuthError('Ongeldig wachtwoord')
-    }
+    if (password === adminPass) { setIsAuthenticated(true); setAuthError('') }
+    else setAuthError('Ongeldig wachtwoord')
   }
 
   const handleEdit = (tarief: Tarief) => {
@@ -106,73 +161,94 @@ export default function AdminPage() {
   }
 
   const handleSaveEdit = async (id: string) => {
-    setSaveError('')
+    setTarievenError('')
     try {
       const response = await fetch('/api/tarieven', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, ...editValues }),
       })
-
       if (response.ok) {
         setTarieven(prev => prev.map(t => t.id === id ? { ...t, ...editValues } : t))
         setEditingId(null)
-        setSaveSuccess('Tarief bijgewerkt')
-        setTimeout(() => setSaveSuccess(''), 3000)
+        setTarievenSuccess('Tarief bijgewerkt')
+        setTimeout(() => setTarievenSuccess(''), 3000)
       } else {
         const err = await response.json()
-        setSaveError(err.error ?? 'Opslaan mislukt.')
+        setTarievenError(err.error ?? 'Opslaan mislukt.')
       }
     } catch {
-      setSaveError('Verbindingsfout — probeer opnieuw.')
+      setTarievenError('Verbindingsfout — probeer opnieuw.')
     }
   }
 
   const handleDelete = async (id: string) => {
     if (!confirm('Tarief verwijderen?')) return
-    setSaveError('')
+    setTarievenError('')
     try {
       const response = await fetch(`/api/tarieven?id=${id}`, { method: 'DELETE' })
       if (response.ok) {
         setTarieven(prev => prev.filter(t => t.id !== id))
-        setSaveSuccess('Tarief verwijderd')
-        setTimeout(() => setSaveSuccess(''), 3000)
+        setTarievenSuccess('Tarief verwijderd')
+        setTimeout(() => setTarievenSuccess(''), 3000)
       } else {
         const err = await response.json()
-        setSaveError(err.error ?? 'Verwijderen mislukt.')
+        setTarievenError(err.error ?? 'Verwijderen mislukt.')
       }
     } catch {
-      setSaveError('Verbindingsfout — probeer opnieuw.')
+      setTarievenError('Verbindingsfout — probeer opnieuw.')
     }
   }
 
   const handleAddTarief = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newTarief.code.trim()) return
-    setSaveError('')
+    if (!newTarief.omschrijving.trim()) return
+    setTarievenError('')
     try {
       const response = await fetch('/api/tarieven', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newTarief),
       })
-
       if (response.ok) {
         await fetchTarieven()
-        setNewTarief({ code: '', omschrijving: '', uurtarief: 60 })
-        setSaveSuccess('Tarief toegevoegd')
-        setTimeout(() => setSaveSuccess(''), 3000)
+        setNewTarief({ omschrijving: '', uurtarief: 60 })
+        setTarievenSuccess('Tarief toegevoegd')
+        setTimeout(() => setTarievenSuccess(''), 3000)
       } else {
         const err = await response.json()
-        setSaveError(err.error ?? 'Toevoegen mislukt.')
+        setTarievenError(err.error ?? 'Toevoegen mislukt.')
       }
     } catch {
-      setSaveError('Verbindingsfout — probeer opnieuw.')
+      setTarievenError('Verbindingsfout — probeer opnieuw.')
     }
   }
 
-  const handleDownloadPdf = async (row: OfferteSaved) => {
-    setDownloadingId(row.id)
+  const handleSaveReis = async (key: string, value: string) => {
+    setSavingReisKey(key)
+    setReisError('')
+    try {
+      const response = await fetch('/api/instellingen', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, value }),
+      })
+      if (response.ok) {
+        setReisSuccess('Opgeslagen')
+        setTimeout(() => setReisSuccess(''), 2000)
+      } else {
+        const err = await response.json()
+        setReisError(err.error ?? 'Opslaan mislukt.')
+      }
+    } catch {
+      setReisError('Verbindingsfout — probeer opnieuw.')
+    } finally {
+      setSavingReisKey(null)
+    }
+  }
+
+  const handleDownloadOfferte = async (row: OfferteSaved) => {
+    setDownloadingOfferte(row.id)
     setOffertesError('')
     try {
       const [rendererMod, docMod] = await Promise.all([
@@ -193,11 +269,10 @@ export default function AdminPage() {
       link.click()
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
-    } catch (e) {
-      console.error('PDF genereren error:', e)
+    } catch {
       setOffertesError('PDF genereren mislukt.')
     } finally {
-      setDownloadingId(null)
+      setDownloadingOfferte(null)
     }
   }
 
@@ -206,21 +281,60 @@ export default function AdminPage() {
     setOffertesError('')
     try {
       const response = await fetch(`/api/offertes?id=${id}`, { method: 'DELETE' })
-      if (response.ok) {
-        setOffertes(prev => prev.filter(o => o.id !== id))
-      } else {
-        const err = await response.json()
-        setOffertesError(err.error ?? 'Verwijderen mislukt.')
-      }
+      if (response.ok) setOffertes(prev => prev.filter(o => o.id !== id))
+      else { const err = await response.json(); setOffertesError(err.error ?? 'Verwijderen mislukt.') }
     } catch {
       setOffertesError('Verbindingsfout — probeer opnieuw.')
     }
   }
 
-  const inputStyle = {
-    backgroundColor: '#2D2D2D',
-    borderColor: '#4D4D4D',
-    color: '#ffffff',
+  const handleDownloadFactuurPdf = async (row: FactuurSaved, type: 'factuur' | 'bijlage') => {
+    if (type === 'factuur') setDownloadingFactuur(row.id)
+    else setDownloadingBijlage(row.id)
+    setFacturenError('')
+    try {
+      const factuurNummer = `FACT-${row.data.jaar}-W${String(row.data.weekNummer).padStart(2, '0')}-${row.id.slice(-4)}`
+      const logoUrl = `${window.location.origin}/vanwinden_techniek_logo_transparant.png`
+      const { pdf } = await import('@react-pdf/renderer')
+      let element: React.ReactElement
+      let fileName: string
+      if (type === 'factuur') {
+        const { default: FactuurDoc } = await import('@/components/FactuurDocument')
+        element = React.createElement(FactuurDoc, { factuur: row.data, logoUrl })
+        fileName = `Factuur_VanWindenTechniek_Week${row.data.weekNummer}_${row.data.jaar}.pdf`
+      } else {
+        const { default: BijlageDoc } = await import('@/components/BijlageDocument')
+        element = React.createElement(BijlageDoc, { factuur: row.data, factuurNummer, logoUrl })
+        fileName = `Bijlage_VanWindenTechniek_Week${row.data.weekNummer}_${row.data.jaar}.pdf`
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const blob = await (pdf as any)(element).toBlob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = fileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch {
+      setFacturenError('PDF genereren mislukt.')
+    } finally {
+      setDownloadingFactuur(null)
+      setDownloadingBijlage(null)
+    }
+  }
+
+  const handleDeleteFactuur = async (id: string) => {
+    if (!confirm('Factuur verwijderen?')) return
+    setFacturenError('')
+    try {
+      const response = await fetch(`/api/facturen?id=${id}`, { method: 'DELETE' })
+      if (response.ok) setFacturen(prev => prev.filter(f => f.id !== id))
+      else { const err = await response.json(); setFacturenError(err.error ?? 'Verwijderen mislukt.') }
+    } catch {
+      setFacturenError('Verbindingsfout — probeer opnieuw.')
+    }
   }
 
   if (!isAuthenticated) {
@@ -228,15 +342,9 @@ export default function AdminPage() {
       <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#2D2D2D' }}>
         <Header />
         <main className="flex-1 flex items-center justify-center p-4">
-          <div
-            className="w-full max-w-sm rounded-xl p-8 space-y-6"
-            style={{ backgroundColor: '#3D3D3D' }}
-          >
+          <div className="w-full max-w-sm rounded-xl p-8 space-y-6" style={{ backgroundColor: '#3D3D3D' }}>
             <div className="text-center">
-              <div
-                className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
-                style={{ backgroundColor: 'rgba(0, 232, 255, 0.1)' }}
-              >
+              <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: 'rgba(0, 232, 255, 0.1)' }}>
                 <svg className="w-6 h-6" style={{ color: '#00E8FF' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
@@ -244,7 +352,6 @@ export default function AdminPage() {
               <h1 className="text-xl font-bold text-white">Beheerportal</h1>
               <p style={{ color: '#9D9D9D' }} className="text-sm mt-1">Van Winden Techniek</p>
             </div>
-
             <form onSubmit={handleLogin} className="space-y-4">
               <div className="space-y-1">
                 <label className="text-xs font-medium" style={{ color: '#9D9D9D' }}>Wachtwoord</label>
@@ -258,16 +365,8 @@ export default function AdminPage() {
                   autoFocus
                 />
               </div>
-
-              {authError && (
-                <p className="text-xs" style={{ color: '#FF4444' }}>{authError}</p>
-              )}
-
-              <button
-                type="submit"
-                className="w-full py-2.5 rounded-lg font-medium text-sm text-white transition-all duration-200"
-                style={{ background: 'linear-gradient(135deg, #0055FF, #00E8FF)' }}
-              >
+              {authError && <p className="text-xs" style={{ color: '#FF4444' }}>{authError}</p>}
+              <button type="submit" className="w-full py-2.5 rounded-lg font-medium text-sm text-white transition-all duration-200" style={{ background: 'linear-gradient(135deg, #0055FF, #00E8FF)' }}>
                 Inloggen
               </button>
             </form>
@@ -280,90 +379,63 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#2D2D2D' }}>
       <Header />
-
       <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-white">Beheerportal</h1>
             <p style={{ color: '#9D9D9D' }} className="text-sm mt-1">Van Winden Techniek</p>
           </div>
-          <button
-            onClick={() => setIsAuthenticated(false)}
-            className="text-xs px-3 py-1.5 rounded-lg transition-colors"
-            style={{ color: '#9D9D9D', backgroundColor: '#3D3D3D' }}
-          >
+          <button onClick={() => setIsAuthenticated(false)} className="text-xs px-3 py-1.5 rounded-lg transition-colors" style={{ color: '#9D9D9D', backgroundColor: '#3D3D3D' }}>
             Uitloggen
           </button>
         </div>
 
         {/* Tab navigatie */}
         <div className="flex gap-1 mb-6 p-1 rounded-xl" style={{ backgroundColor: '#3D3D3D' }}>
-          <button
-            onClick={() => setActiveTab('tarieven')}
-            className="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all"
-            style={activeTab === 'tarieven'
-              ? { backgroundColor: '#2D2D2D', color: '#ffffff' }
-              : { color: '#9D9D9D' }
-            }
-          >
-            Tarieven
-          </button>
-          <button
-            onClick={() => setActiveTab('offertes')}
-            className="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all"
-            style={activeTab === 'offertes'
-              ? { backgroundColor: '#2D2D2D', color: '#ffffff' }
-              : { color: '#9D9D9D' }
-            }
-          >
-            Offertes
-          </button>
+          {(['tarieven', 'offertes', 'facturen'] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all capitalize"
+              style={activeTab === tab ? { backgroundColor: '#2D2D2D', color: '#ffffff' } : { color: '#9D9D9D' }}
+            >
+              {tab}
+            </button>
+          ))}
         </div>
 
         {/* ── Tarieven tab ── */}
         {activeTab === 'tarieven' && (
           <>
-            {saveError && (
-              <div
-                className="mb-4 px-4 py-3 rounded-lg text-sm"
-                style={{ backgroundColor: 'rgba(255, 68, 68, 0.1)', color: '#FF4444' }}
-              >
-                {saveError}
+            {tarievenError && (
+              <div className="mb-4 px-4 py-3 rounded-lg text-sm" style={{ backgroundColor: 'rgba(255, 68, 68, 0.1)', color: '#FF4444' }}>
+                {tarievenError}
               </div>
             )}
-            {saveSuccess && (
-              <div
-                className="mb-4 px-4 py-3 rounded-lg text-sm"
-                style={{ backgroundColor: 'rgba(0, 232, 255, 0.1)', color: '#00E8FF' }}
-              >
-                {saveSuccess}
+            {tarievenSuccess && (
+              <div className="mb-4 px-4 py-3 rounded-lg text-sm" style={{ backgroundColor: 'rgba(0, 232, 255, 0.1)', color: '#00E8FF' }}>
+                {tarievenSuccess}
               </div>
             )}
 
-            <div
-              className="rounded-xl overflow-hidden mb-8"
-              style={{ backgroundColor: '#3D3D3D' }}
-            >
+            {/* Arbeidskosten tarieven tabel */}
+            <div className="rounded-xl overflow-hidden mb-6" style={{ backgroundColor: '#3D3D3D' }}>
               <div className="px-5 py-4 border-b" style={{ borderColor: '#4D4D4D' }}>
-                <h2 className="text-white font-semibold">Tarieven overzicht</h2>
+                <h2 className="text-white font-semibold">Arbeidskosten tarieven</h2>
                 <p style={{ color: '#9D9D9D' }} className="text-xs mt-0.5">
-                  {tarieven.length} tarieven &bull; Koppeling met werkzaamheden codes uit PDF
+                  {tarieven.length} tarieven · Gekoppeld aan werkzaamheden omschrijving uit PDF
                 </p>
               </div>
 
-              {isLoading ? (
+              {isLoadingTarieven ? (
                 <div className="flex items-center justify-center py-12">
-                  <div
-                    className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin"
-                    style={{ borderColor: '#00E8FF', borderTopColor: 'transparent' }}
-                  />
+                  <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00E8FF', borderTopColor: 'transparent' }} />
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr style={{ backgroundColor: '#2D2D2D' }}>
-                        <th className="px-4 py-3 text-left text-xs font-semibold" style={{ color: '#9D9D9D' }}>Code</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold" style={{ color: '#9D9D9D' }}>Omschrijving</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold" style={{ color: '#9D9D9D' }}>Uurtarief</th>
                         <th className="px-4 py-3 text-right text-xs font-semibold" style={{ color: '#9D9D9D' }}>Acties</th>
@@ -371,19 +443,7 @@ export default function AdminPage() {
                     </thead>
                     <tbody>
                       {tarieven.map(tarief => (
-                        <tr
-                          key={tarief.id}
-                          className="border-t"
-                          style={{ borderColor: '#4D4D4D' }}
-                        >
-                          <td className="px-4 py-3">
-                            <span
-                              className="text-xs px-2 py-0.5 rounded font-mono"
-                              style={{ backgroundColor: 'rgba(0, 232, 255, 0.1)', color: '#00E8FF' }}
-                            >
-                              {tarief.code}
-                            </span>
-                          </td>
+                        <tr key={tarief.id} className="border-t" style={{ borderColor: '#4D4D4D' }}>
                           <td className="px-4 py-3">
                             {editingId === tarief.id ? (
                               <input
@@ -415,37 +475,13 @@ export default function AdminPage() {
                             <div className="flex items-center justify-end gap-2">
                               {editingId === tarief.id ? (
                                 <>
-                                  <button
-                                    onClick={() => handleSaveEdit(tarief.id)}
-                                    className="text-xs px-3 py-1 rounded transition-colors"
-                                    style={{ backgroundColor: 'rgba(0, 232, 255, 0.1)', color: '#00E8FF' }}
-                                  >
-                                    Opslaan
-                                  </button>
-                                  <button
-                                    onClick={() => setEditingId(null)}
-                                    className="text-xs px-3 py-1 rounded transition-colors"
-                                    style={{ color: '#9D9D9D', backgroundColor: '#2D2D2D' }}
-                                  >
-                                    Annuleren
-                                  </button>
+                                  <button onClick={() => handleSaveEdit(tarief.id)} className="text-xs px-3 py-1 rounded transition-colors" style={{ backgroundColor: 'rgba(0, 232, 255, 0.1)', color: '#00E8FF' }}>Opslaan</button>
+                                  <button onClick={() => setEditingId(null)} className="text-xs px-3 py-1 rounded transition-colors" style={{ color: '#9D9D9D', backgroundColor: '#2D2D2D' }}>Annuleren</button>
                                 </>
                               ) : (
                                 <>
-                                  <button
-                                    onClick={() => handleEdit(tarief)}
-                                    className="text-xs px-3 py-1 rounded transition-colors"
-                                    style={{ color: '#9D9D9D', backgroundColor: '#2D2D2D' }}
-                                  >
-                                    Bewerken
-                                  </button>
-                                  <button
-                                    onClick={() => handleDelete(tarief.id)}
-                                    className="text-xs px-3 py-1 rounded transition-colors"
-                                    style={{ color: '#FF4444', backgroundColor: 'rgba(255, 68, 68, 0.1)' }}
-                                  >
-                                    Verwijder
-                                  </button>
+                                  <button onClick={() => handleEdit(tarief)} className="text-xs px-3 py-1 rounded transition-colors" style={{ color: '#9D9D9D', backgroundColor: '#2D2D2D' }}>Bewerken</button>
+                                  <button onClick={() => handleDelete(tarief.id)} className="text-xs px-3 py-1 rounded transition-colors" style={{ color: '#FF4444', backgroundColor: 'rgba(255, 68, 68, 0.1)' }}>Verwijder</button>
                                 </>
                               )}
                             </div>
@@ -459,33 +495,19 @@ export default function AdminPage() {
             </div>
 
             {/* Nieuw tarief */}
-            <div
-              className="rounded-xl p-5"
-              style={{ backgroundColor: '#3D3D3D' }}
-            >
+            <div className="rounded-xl p-5 mb-8" style={{ backgroundColor: '#3D3D3D' }}>
               <h2 className="text-white font-semibold mb-4">Nieuw tarief toevoegen</h2>
               <form onSubmit={handleAddTarief} className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium" style={{ color: '#9D9D9D' }}>Code *</label>
-                  <input
-                    type="text"
-                    value={newTarief.code}
-                    onChange={e => setNewTarief(prev => ({ ...prev, code: e.target.value.toUpperCase() }))}
-                    placeholder="bijv. O-X"
-                    className="w-full px-3 py-2 rounded-lg border text-sm"
-                    style={inputStyle}
-                    required
-                  />
-                </div>
-                <div className="space-y-1 md:col-span-2">
-                  <label className="text-xs font-medium" style={{ color: '#9D9D9D' }}>Omschrijving</label>
+                <div className="space-y-1 md:col-span-3">
+                  <label className="text-xs font-medium" style={{ color: '#9D9D9D' }}>Omschrijving *</label>
                   <input
                     type="text"
                     value={newTarief.omschrijving}
                     onChange={e => setNewTarief(prev => ({ ...prev, omschrijving: e.target.value }))}
-                    placeholder="bijv. Onderhoud overig"
+                    placeholder="bijv. Onderhoud Roldeuren"
                     className="w-full px-3 py-2 rounded-lg border text-sm"
                     style={inputStyle}
+                    required
                   />
                 </div>
                 <div className="space-y-1">
@@ -501,15 +523,58 @@ export default function AdminPage() {
                   />
                 </div>
                 <div className="md:col-span-4">
-                  <button
-                    type="submit"
-                    className="px-6 py-2.5 rounded-lg font-medium text-sm text-white transition-all duration-200"
-                    style={{ background: 'linear-gradient(135deg, #0055FF, #00E8FF)' }}
-                  >
+                  <button type="submit" className="px-6 py-2.5 rounded-lg font-medium text-sm text-white transition-all duration-200" style={{ background: 'linear-gradient(135deg, #0055FF, #00E8FF)' }}>
                     Tarief toevoegen
                   </button>
                 </div>
               </form>
+            </div>
+
+            {/* Reiskosten instellingen */}
+            <div className="rounded-xl p-5" style={{ backgroundColor: '#3D3D3D' }}>
+              <h2 className="text-white font-semibold mb-1">Reiskosten tarieven</h2>
+              <p style={{ color: '#9D9D9D' }} className="text-xs mb-4">Deze tarieven worden gebruikt bij alle berekeningen — altijd leidend.</p>
+
+              {reisError && <div className="mb-3 px-3 py-2 rounded text-xs" style={{ backgroundColor: 'rgba(255,68,68,0.1)', color: '#FF4444' }}>{reisError}</div>}
+              {reisSuccess && <div className="mb-3 px-3 py-2 rounded text-xs" style={{ backgroundColor: 'rgba(0,232,255,0.1)', color: '#00E8FF' }}>{reisSuccess}</div>}
+
+              {isLoadingReis ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00E8FF', borderTopColor: 'transparent' }} />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  {[
+                    { key: 'km_tarief', label: 'Kilometervergoeding (€/km)', step: '0.01', placeholder: '0.50' },
+                    { key: 'reis_uur_tarief', label: 'Reistijd tarief (€/uur)', step: '0.50', placeholder: '55' },
+                    { key: 'filemarge', label: 'Filemarge (factor)', step: '0.01', placeholder: '1.15' },
+                  ].map(({ key, label, step, placeholder }) => (
+                    <div key={key} className="space-y-2">
+                      <label className="text-xs font-medium" style={{ color: '#9D9D9D' }}>{label}</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="number"
+                          step={step}
+                          min="0"
+                          value={reisInstellingen[key as keyof ReisInstellingen]}
+                          onChange={e => setReisInstellingen(prev => ({ ...prev, [key]: e.target.value }))}
+                          placeholder={placeholder}
+                          className="flex-1 px-3 py-2 rounded-lg border text-sm"
+                          style={inputStyle}
+                        />
+                        <button
+                          onClick={() => handleSaveReis(key, reisInstellingen[key as keyof ReisInstellingen])}
+                          disabled={savingReisKey === key}
+                          className="px-3 py-2 rounded-lg text-xs font-medium transition-opacity disabled:opacity-50"
+                          style={{ backgroundColor: 'rgba(0, 232, 255, 0.1)', color: '#00E8FF' }}
+                        >
+                          {savingReisKey === key ? '...' : 'Sla op'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </>
         )}
@@ -517,43 +582,22 @@ export default function AdminPage() {
         {/* ── Offertes tab ── */}
         {activeTab === 'offertes' && (
           <>
-            {offertesError && (
-              <div
-                className="mb-4 px-4 py-3 rounded-lg text-sm"
-                style={{ backgroundColor: 'rgba(255, 68, 68, 0.1)', color: '#FF4444' }}
-              >
-                {offertesError}
-              </div>
-            )}
-
+            {offertesError && <div className="mb-4 px-4 py-3 rounded-lg text-sm" style={{ backgroundColor: 'rgba(255, 68, 68, 0.1)', color: '#FF4444' }}>{offertesError}</div>}
             <div className="rounded-xl overflow-hidden" style={{ backgroundColor: '#3D3D3D' }}>
               <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: '#4D4D4D' }}>
                 <div>
                   <h2 className="text-white font-semibold">Opgeslagen offertes</h2>
-                  <p className="text-xs mt-0.5" style={{ color: '#9D9D9D' }}>
-                    {offertes.length} offerte{offertes.length !== 1 ? 's' : ''}
-                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: '#9D9D9D' }}>{offertes.length} offerte{offertes.length !== 1 ? 's' : ''}</p>
                 </div>
-                <button
-                  onClick={() => { setOffertesLoaded(false) }}
-                  className="text-xs px-3 py-1.5 rounded-lg transition-colors"
-                  style={{ color: '#9D9D9D', backgroundColor: '#2D2D2D' }}
-                >
-                  Vernieuwen
-                </button>
+                <button onClick={() => setOffertesLoaded(false)} className="text-xs px-3 py-1.5 rounded-lg" style={{ color: '#9D9D9D', backgroundColor: '#2D2D2D' }}>Vernieuwen</button>
               </div>
 
               {isLoadingOffertes ? (
                 <div className="flex items-center justify-center py-12">
-                  <div
-                    className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin"
-                    style={{ borderColor: '#00E8FF', borderTopColor: 'transparent' }}
-                  />
+                  <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00E8FF', borderTopColor: 'transparent' }} />
                 </div>
               ) : offertes.length === 0 ? (
-                <div className="px-5 py-12 text-center">
-                  <p className="text-sm" style={{ color: '#9D9D9D' }}>Geen opgeslagen offertes</p>
-                </div>
+                <div className="px-5 py-12 text-center"><p className="text-sm" style={{ color: '#9D9D9D' }}>Geen opgeslagen offertes</p></div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -570,58 +614,97 @@ export default function AdminPage() {
                     <tbody>
                       {offertes.map(row => (
                         <tr key={row.id} className="border-t" style={{ borderColor: '#4D4D4D' }}>
-                          <td className="px-4 py-3">
-                            <span className="text-white font-medium capitalize">
-                              {row.maand} {row.jaar}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <span style={{ color: '#9D9D9D' }}>
-                              {row.data?.klussen?.length ?? '—'}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <span className="text-white">
-                              {formatCurrency(row.data?.totaal ?? row.totaal)}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <span className="font-semibold" style={{ color: '#00E8FF' }}>
-                              {formatCurrency(row.data?.totaalInclBTW ?? row.totaal * 1.21)}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <span className="text-xs" style={{ color: '#9D9D9D' }}>
-                              {formatDate(row.aangemaakt)}
-                            </span>
-                          </td>
+                          <td className="px-4 py-3"><span className="text-white font-medium capitalize">{row.maand} {row.jaar}</span></td>
+                          <td className="px-4 py-3 text-right"><span style={{ color: '#9D9D9D' }}>{row.data?.klussen?.length ?? '—'}</span></td>
+                          <td className="px-4 py-3 text-right"><span className="text-white">{formatCurrency(row.data?.totaal ?? row.totaal)}</span></td>
+                          <td className="px-4 py-3 text-right"><span className="font-semibold" style={{ color: '#00E8FF' }}>{formatCurrency(row.data?.totaalInclBTW ?? row.totaal * 1.21)}</span></td>
+                          <td className="px-4 py-3 text-right"><span className="text-xs" style={{ color: '#9D9D9D' }}>{formatDate(row.aangemaakt)}</span></td>
                           <td className="px-4 py-3">
                             <div className="flex items-center justify-end gap-2">
                               <button
-                                onClick={() => handleDownloadPdf(row)}
-                                disabled={downloadingId === row.id}
-                                className="text-xs px-3 py-1.5 rounded transition-all disabled:opacity-50 flex items-center gap-1.5 whitespace-nowrap"
+                                onClick={() => handleDownloadOfferte(row)}
+                                disabled={downloadingOfferte === row.id}
+                                className="text-xs px-3 py-1.5 rounded transition-all disabled:opacity-50 flex items-center gap-1.5"
                                 style={{ background: 'linear-gradient(135deg, #0055FF, #00E8FF)', color: '#ffffff' }}
                               >
-                                {downloadingId === row.id ? (
-                                  <>
-                                    <div
-                                      className="w-3 h-3 border border-t-transparent rounded-full animate-spin"
-                                      style={{ borderColor: '#fff', borderTopColor: 'transparent' }}
-                                    />
-                                    Genereren...
-                                  </>
-                                ) : (
-                                  'Download PDF'
-                                )}
+                                {downloadingOfferte === row.id ? (<><div className="w-3 h-3 border border-t-transparent rounded-full animate-spin" style={{ borderColor: '#fff', borderTopColor: 'transparent' }} />Genereren...</>) : 'Download PDF'}
+                              </button>
+                              <button onClick={() => handleDeleteOfferte(row.id)} className="text-xs px-3 py-1.5 rounded" style={{ color: '#FF4444', backgroundColor: 'rgba(255, 68, 68, 0.1)' }}>Verwijder</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* ── Facturen tab ── */}
+        {activeTab === 'facturen' && (
+          <>
+            {facturenError && <div className="mb-4 px-4 py-3 rounded-lg text-sm" style={{ backgroundColor: 'rgba(255, 68, 68, 0.1)', color: '#FF4444' }}>{facturenError}</div>}
+            <div className="rounded-xl overflow-hidden" style={{ backgroundColor: '#3D3D3D' }}>
+              <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: '#4D4D4D' }}>
+                <div>
+                  <h2 className="text-white font-semibold">Opgeslagen facturen</h2>
+                  <p className="text-xs mt-0.5" style={{ color: '#9D9D9D' }}>{facturen.length} factuur/facturen</p>
+                </div>
+                <button onClick={() => setFacturenLoaded(false)} className="text-xs px-3 py-1.5 rounded-lg" style={{ color: '#9D9D9D', backgroundColor: '#2D2D2D' }}>Vernieuwen</button>
+              </div>
+
+              {isLoadingFacturen ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00E8FF', borderTopColor: 'transparent' }} />
+                </div>
+              ) : facturen.length === 0 ? (
+                <div className="px-5 py-12 text-center"><p className="text-sm" style={{ color: '#9D9D9D' }}>Geen opgeslagen facturen</p></div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ backgroundColor: '#2D2D2D' }}>
+                        <th className="px-4 py-3 text-left text-xs font-semibold" style={{ color: '#9D9D9D' }}>Periode</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold" style={{ color: '#9D9D9D' }}>Werkbonnen</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold" style={{ color: '#9D9D9D' }}>Excl. BTW</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold" style={{ color: '#9D9D9D' }}>Incl. BTW</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold" style={{ color: '#9D9D9D' }}>Aangemaakt</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold" style={{ color: '#9D9D9D' }}>Acties</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {facturen.map(row => (
+                        <tr key={row.id} className="border-t" style={{ borderColor: '#4D4D4D' }}>
+                          <td className="px-4 py-3">
+                            <span className="text-white font-medium">Week {row.data?.weekNummer ?? row.maand} {row.data?.jaar ?? row.jaar}</span>
+                          </td>
+                          <td className="px-4 py-3 text-right"><span style={{ color: '#9D9D9D' }}>{row.data?.klussen?.length ?? '—'}</span></td>
+                          <td className="px-4 py-3 text-right"><span className="text-white">{formatCurrency(row.data?.totaal ?? row.totaal)}</span></td>
+                          <td className="px-4 py-3 text-right"><span className="font-semibold" style={{ color: '#00E8FF' }}>{formatCurrency(row.data?.totaalInclBTW ?? row.totaal * 1.21)}</span></td>
+                          <td className="px-4 py-3 text-right"><span className="text-xs" style={{ color: '#9D9D9D' }}>{formatDate(row.aangemaakt)}</span></td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleDownloadFactuurPdf(row, 'factuur')}
+                                disabled={downloadingFactuur === row.id}
+                                className="text-xs px-3 py-1.5 rounded disabled:opacity-50 flex items-center gap-1"
+                                style={{ background: 'linear-gradient(135deg, #0055FF, #00E8FF)', color: '#fff' }}
+                              >
+                                {downloadingFactuur === row.id ? (<div className="w-3 h-3 border border-t-transparent rounded-full animate-spin" style={{ borderColor: '#fff', borderTopColor: 'transparent' }} />) : null}
+                                Factuur
                               </button>
                               <button
-                                onClick={() => handleDeleteOfferte(row.id)}
-                                className="text-xs px-3 py-1.5 rounded transition-colors"
-                                style={{ color: '#FF4444', backgroundColor: 'rgba(255, 68, 68, 0.1)' }}
+                                onClick={() => handleDownloadFactuurPdf(row, 'bijlage')}
+                                disabled={downloadingBijlage === row.id}
+                                className="text-xs px-3 py-1.5 rounded disabled:opacity-50 flex items-center gap-1"
+                                style={{ backgroundColor: '#4D4D4D', color: '#fff' }}
                               >
-                                Verwijder
+                                {downloadingBijlage === row.id ? (<div className="w-3 h-3 border border-t-transparent rounded-full animate-spin" style={{ borderColor: '#fff', borderTopColor: 'transparent' }} />) : null}
+                                Bijlage
                               </button>
+                              <button onClick={() => handleDeleteFactuur(row.id)} className="text-xs px-3 py-1.5 rounded" style={{ color: '#FF4444', backgroundColor: 'rgba(255, 68, 68, 0.1)' }}>Verwijder</button>
                             </div>
                           </td>
                         </tr>

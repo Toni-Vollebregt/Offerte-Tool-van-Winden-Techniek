@@ -53,18 +53,34 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
+    if (!body.omschrijving?.trim()) {
+      return NextResponse.json({ error: 'Omschrijving is verplicht.' }, { status: 400 })
+    }
+    // Auto-genereer code als niet meegegeven
+    const baseCode = (body.omschrijving as string)
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 30)
+    const code = body.code?.trim() || `${baseCode}-${Date.now().toString().slice(-4)}`
+
     const { createClient } = await import('@supabase/supabase-js')
     const supabase = createClient(supabaseUrl, supabaseKey)
 
     const { data, error } = await supabase
       .from('tarieven')
-      .upsert(body)
+      .insert({ code, omschrijving: body.omschrijving, uurtarief: body.uurtarief })
       .select()
 
-    if (error) throw error
-    return NextResponse.json(data)
+    if (error) {
+      console.error('tarieven POST error:', error)
+      return NextResponse.json({ error: 'Opslaan mislukt.' }, { status: 500 })
+    }
+    return NextResponse.json(data?.[0] ?? {})
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    console.error('tarieven POST error:', err)
+    return NextResponse.json({ error: 'Onverwachte fout.' }, { status: 500 })
   }
 }
 

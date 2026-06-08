@@ -1,21 +1,39 @@
-import type { Klus, Rit } from '@/types'
+import type { Klus, Rit, ExtraRegel } from '@/types'
 
-const KM_TARIEF = 0.50
-const REIS_UUR_TARIEF = 55
-const FILEMARGE = 1.15
+export const KM_TARIEF_DEFAULT = 0.50
+export const REIS_UUR_TARIEF_DEFAULT = 55
+export const FILEMARGE_DEFAULT = 1.15
+
+export interface ReisRates {
+  kmTarief: number
+  reisUurTarief: number
+  filemarge: number
+}
+
+export function parseReisRates(raw: Record<string, string>): ReisRates {
+  return {
+    kmTarief: parseFloat(raw.km_tarief ?? '') || KM_TARIEF_DEFAULT,
+    reisUurTarief: parseFloat(raw.reis_uur_tarief ?? '') || REIS_UUR_TARIEF_DEFAULT,
+    filemarge: parseFloat(raw.filemarge ?? '') || FILEMARGE_DEFAULT,
+  }
+}
 
 export function berekenKlus(
   klus: Partial<Klus>,
   afstandKm: number,
   reisUren: number,
-  uurtarief: number
+  uurtarief: number,
+  rates: Partial<ReisRates> = {}
 ): Klus {
+  const kmTarief = rates.kmTarief ?? KM_TARIEF_DEFAULT
+  const reisUurTarief = rates.reisUurTarief ?? REIS_UUR_TARIEF_DEFAULT
+  const filemarge = rates.filemarge ?? FILEMARGE_DEFAULT
   const duur = klus.duur ?? 0
   const projectNaam = klus.projectNaam ?? ''
   const rivgToeslag = /ri-vg/i.test(klus.werkzaamhedenOmschrijving ?? '') ? 5 : 0
   const arbeidskosten = Math.round((duur * uurtarief + rivgToeslag) * 100) / 100
-  const reiskostenKm = Math.round(afstandKm * KM_TARIEF * 100) / 100
-  const reiskostenUur = Math.round(reisUren * 2 * REIS_UUR_TARIEF * FILEMARGE * 100) / 100
+  const reiskostenKm = Math.round(afstandKm * kmTarief * 100) / 100
+  const reiskostenUur = Math.round(reisUren * 2 * reisUurTarief * filemarge * 100) / 100
   const totaal = Math.round((arbeidskosten + reiskostenKm + reiskostenUur) * 100) / 100
 
   return {
@@ -41,7 +59,7 @@ export function berekenKlus(
   }
 }
 
-// Berekent één reisrit (één richting). Geen * 2 factor — elke rit is een eigen segment.
+// Berekent één reisrit (één richting).
 export function berekenRit(
   datum: string,
   van: string,
@@ -49,10 +67,14 @@ export function berekenRit(
   afstandKm: number,
   reisUren: number,
   technicianName?: string,
-  locatieError?: string
+  locatieError?: string,
+  rates: Partial<ReisRates> = {}
 ): Rit {
-  const reiskostenKm = Math.round(afstandKm * KM_TARIEF * 100) / 100
-  const reiskostenUur = Math.round(reisUren * REIS_UUR_TARIEF * FILEMARGE * 100) / 100
+  const kmTarief = rates.kmTarief ?? KM_TARIEF_DEFAULT
+  const reisUurTarief = rates.reisUurTarief ?? REIS_UUR_TARIEF_DEFAULT
+  const filemarge = rates.filemarge ?? FILEMARGE_DEFAULT
+  const reiskostenKm = Math.round(afstandKm * kmTarief * 100) / 100
+  const reiskostenUur = Math.round(reisUren * reisUurTarief * filemarge * 100) / 100
   return {
     id: crypto.randomUUID(),
     datum,
@@ -69,7 +91,11 @@ export function berekenRit(
 }
 
 // Backward compatible: als rits leeg is, worden reiskosten uit klussen gelezen (offerte flow).
-export function berekenOfferteTotalen(klussen: Klus[], rits: Rit[] = []) {
+export function berekenOfferteTotalen(
+  klussen: Klus[],
+  rits: Rit[] = [],
+  extraRegels: ExtraRegel[] = []
+) {
   const subtotaalArbeid = Math.round(klussen.reduce((s, k) => s + k.arbeidskosten, 0) * 100) / 100
   const subtotaalReisKm = rits.length > 0
     ? Math.round(rits.reduce((s, r) => s + r.reiskostenKm, 0) * 100) / 100
@@ -77,10 +103,11 @@ export function berekenOfferteTotalen(klussen: Klus[], rits: Rit[] = []) {
   const subtotaalReisUur = rits.length > 0
     ? Math.round(rits.reduce((s, r) => s + r.reiskostenUur, 0) * 100) / 100
     : Math.round(klussen.reduce((s, k) => s + k.reiskostenUur, 0) * 100) / 100
-  const totaal = Math.round((subtotaalArbeid + subtotaalReisKm + subtotaalReisUur) * 100) / 100
+  const subtotaalExtra = Math.round(extraRegels.reduce((s, r) => s + r.totaal, 0) * 100) / 100
+  const totaal = Math.round((subtotaalArbeid + subtotaalReisKm + subtotaalReisUur + subtotaalExtra) * 100) / 100
   const btw = Math.round(totaal * 0.21 * 100) / 100
   const totaalInclBTW = Math.round(totaal * 1.21 * 100) / 100
-  return { subtotaalArbeid, subtotaalReisKm, subtotaalReisUur, totaal, btw, totaalInclBTW }
+  return { subtotaalArbeid, subtotaalReisKm, subtotaalReisUur, subtotaalExtra, totaal, btw, totaalInclBTW }
 }
 
 export function formatCurrency(amount: number): string {
@@ -99,5 +126,6 @@ export function formatNumber(value: number, decimals = 2): string {
   }).format(value)
 }
 
-export const KM_TARIEF_CONST = KM_TARIEF
-export const REIS_UUR_TARIEF_CONST = REIS_UUR_TARIEF
+// Deprecated aliases — nog aanwezig voor backwards compat
+export const KM_TARIEF_CONST = KM_TARIEF_DEFAULT
+export const REIS_UUR_TARIEF_CONST = REIS_UUR_TARIEF_DEFAULT

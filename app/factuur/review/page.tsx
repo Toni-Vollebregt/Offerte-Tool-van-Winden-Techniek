@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Header from '@/components/Header'
 import StepIndicator from '@/components/StepIndicator'
-import type { Klus, Rit, Factuur, Tarief } from '@/types'
+import type { Klus, Rit, ExtraRegel, Factuur, Tarief } from '@/types'
 import { berekenKlus, berekenRit, berekenOfferteTotalen, formatCurrency, formatNumber } from '@/lib/calculations'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -240,6 +240,77 @@ function RitRij({
   )
 }
 
+// ─── Extra Regel ─────────────────────────────────────────────────────────────
+
+function ExtraRegelRij({
+  regel,
+  onUpdate,
+  onDelete,
+}: {
+  regel: ExtraRegel
+  onUpdate: (r: ExtraRegel) => void
+  onDelete: (id: string) => void
+}) {
+  const [local, setLocal] = useState(regel)
+
+  useEffect(() => { setLocal(regel) }, [regel])
+
+  const handleField = (field: 'omschrijving' | 'prijs' | 'aantal', value: string | number) => {
+    const updated = { ...local, [field]: value }
+    updated.totaal = Math.round((Number(updated.prijs) * Number(updated.aantal)) * 100) / 100
+    setLocal(updated)
+    onUpdate(updated)
+  }
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 rounded-lg" style={{ backgroundColor: '#2D3D2D', border: '1px solid #3D5D3D' }}>
+      <svg className="w-3.5 h-3.5 flex-shrink-0" style={{ color: '#66BB6A' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+      </svg>
+      <input
+        type="text"
+        value={local.omschrijving}
+        onChange={e => handleField('omschrijving', e.target.value)}
+        placeholder="Omschrijving"
+        className="flex-1 px-2 py-1 rounded text-xs border focus:outline-none"
+        style={{ backgroundColor: '#2D2D2D', borderColor: '#4D4D4D', color: '#fff', minWidth: 0 }}
+      />
+      <input
+        type="number"
+        step="0.01"
+        min="0"
+        value={local.aantal}
+        onChange={e => handleField('aantal', parseFloat(e.target.value) || 0)}
+        className="w-14 px-2 py-1 rounded text-xs border text-right focus:outline-none"
+        style={{ backgroundColor: '#2D2D2D', borderColor: '#4D4D4D', color: '#fff' }}
+        title="Aantal"
+      />
+      <span className="text-xs" style={{ color: '#6D6D6D' }}>×</span>
+      <input
+        type="number"
+        step="0.01"
+        min="0"
+        value={local.prijs}
+        onChange={e => handleField('prijs', parseFloat(e.target.value) || 0)}
+        className="w-20 px-2 py-1 rounded text-xs border text-right focus:outline-none"
+        style={{ backgroundColor: '#2D2D2D', borderColor: '#4D4D4D', color: '#fff' }}
+        title="Prijs per stuk (€)"
+      />
+      <span className="text-xs font-medium" style={{ color: '#66BB6A' }}>{formatCurrency(local.totaal)}</span>
+      <button
+        onClick={() => onDelete(local.id)}
+        className="p-1 rounded transition-opacity hover:opacity-70 flex-shrink-0"
+        style={{ color: '#666666' }}
+        title="Verwijder extra post"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  )
+}
+
 // ─── Loose project toevoegen ─────────────────────────────────────────────────
 
 async function fetchKm(query: string): Promise<{ km: number; uren: number; error?: string }> {
@@ -259,6 +330,7 @@ export default function FactuurReviewPage() {
   const [factuur, setFactuur] = useState<Factuur | null>(null)
   const [klussen, setKlussen] = useState<Klus[]>([])
   const [rits, setRits] = useState<Rit[]>([])
+  const [extraRegels, setExtraRegels] = useState<ExtraRegel[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [isAddingProject, setIsAddingProject] = useState(false)
   const [addProjectError, setAddProjectError] = useState('')
@@ -271,6 +343,7 @@ export default function FactuurReviewPage() {
     setFactuur(parsed)
     setKlussen(parsed.klussen)
     setRits(parsed.rits ?? [])
+    setExtraRegels(parsed.extraRegels ?? [])
   }, [router])
 
   const handleKlusUpdate = useCallback((updated: Klus) => {
@@ -292,38 +365,53 @@ export default function FactuurReviewPage() {
   const handleDeleteDag = useCallback((datum: string, tech: string) => {
     setKlussen(prev => prev.filter(k => !(k.datum === datum && (k.technicianName ?? '') === tech)))
     setRits(prev => prev.filter(r => !(r.datum === datum && (r.technicianName ?? '') === tech)))
+    setExtraRegels(prev => prev.filter(e => !(e.datum === datum && (e.technicianName ?? '') === tech)))
   }, [])
 
-  const totalen = berekenOfferteTotalen(klussen, rits)
+  const handleExtraRegelUpdate = useCallback((updated: ExtraRegel) => {
+    setExtraRegels(prev => prev.map(e => e.id === updated.id ? updated : e))
+  }, [])
+
+  const handleExtraRegelDelete = useCallback((id: string) => {
+    setExtraRegels(prev => prev.filter(e => e.id !== id))
+  }, [])
+
+  const handleAddExtraRegel = useCallback((datum: string, tech: string) => {
+    const nieuw: ExtraRegel = {
+      id: crypto.randomUUID(),
+      datum,
+      technicianName: tech || undefined,
+      omschrijving: '',
+      prijs: 0,
+      aantal: 1,
+      totaal: 0,
+    }
+    setExtraRegels(prev => [...prev, nieuw])
+  }, [])
+
+  const totalen = berekenOfferteTotalen(klussen, rits, extraRegels)
 
   // Groepeer per monteur → per datum
   const techDagGroepen = useMemo(() => {
-    type DagInfo = { datum: string; klussen: Klus[]; rits: Rit[] }
+    type DagInfo = { datum: string; klussen: Klus[]; rits: Rit[]; extraRegels: ExtraRegel[] }
     const techMap = new Map<string, Map<string, DagInfo>>()
 
     const ensureDag = (tech: string, datum: string) => {
       if (!techMap.has(tech)) techMap.set(tech, new Map())
       const dagMap = techMap.get(tech)!
-      if (!dagMap.has(datum)) dagMap.set(datum, { datum, klussen: [], rits: [] })
+      if (!dagMap.has(datum)) dagMap.set(datum, { datum, klussen: [], rits: [], extraRegels: [] })
       return dagMap.get(datum)!
     }
 
-    for (const k of klussen) {
-      const tech = k.technicianName ?? ''
-      const dag = ensureDag(tech, k.datum)
-      dag.klussen.push(k)
-    }
-    for (const r of rits) {
-      const tech = r.technicianName ?? ''
-      const dag = ensureDag(tech, r.datum)
-      dag.rits.push(r)
-    }
+    for (const k of klussen) ensureDag(k.technicianName ?? '', k.datum).klussen.push(k)
+    for (const r of rits) ensureDag(r.technicianName ?? '', r.datum).rits.push(r)
+    for (const e of extraRegels) ensureDag(e.technicianName ?? '', e.datum).extraRegels.push(e)
 
     return [...techMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([tech, dagMap]) => ({
       tech,
       dagen: [...dagMap.values()].sort((a, b) => datumSortKey(a.datum).localeCompare(datumSortKey(b.datum))),
     }))
-  }, [klussen, rits])
+  }, [klussen, rits, extraRegels])
 
   const handleProjectFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -382,8 +470,8 @@ export default function FactuurReviewPage() {
   const handleDoorgaan = () => {
     if (!factuur) return
     setIsSaving(true)
-    const updatedTotalen = berekenOfferteTotalen(klussen, rits)
-    const updatedFactuur: Factuur = { ...factuur, klussen, rits, ...updatedTotalen }
+    const updatedTotalen = berekenOfferteTotalen(klussen, rits, extraRegels)
+    const updatedFactuur: Factuur = { ...factuur, klussen, rits, extraRegels, ...updatedTotalen }
     sessionStorage.setItem('factuur', JSON.stringify(updatedFactuur))
     router.push('/factuur/finalize')
   }
@@ -458,8 +546,10 @@ export default function FactuurReviewPage() {
               {dagen.map(dag => {
                 const dagArbeid = dag.klussen.reduce((s, k) => s + k.arbeidskosten, 0)
                 const dagReis = dag.rits.reduce((s, r) => s + r.totaal, 0)
-                const dagTotaal = Math.round((dagArbeid + dagReis) * 100) / 100
+                const dagTotaal = Math.round((dagArbeid + dagReis + dag.extraRegels.reduce((s, e) => s + e.totaal, 0)) * 100) / 100
                 const timeline = buildTimeline(dag.klussen, dag.rits)
+
+                const dagExtra = dag.extraRegels.reduce((s, e) => s + e.totaal, 0)
 
                 return (
                   <div key={dag.datum} className="rounded-xl overflow-hidden" style={{ border: '1px solid #4D4D4D' }}>
@@ -469,6 +559,7 @@ export default function FactuurReviewPage() {
                         <p className="text-white font-semibold text-sm">{datumLang(dag.datum)}</p>
                         <p className="text-xs" style={{ color: '#9D9D9D' }}>
                           {dag.klussen.length} klus(sen) · {dag.rits.length} rit(ten)
+                          {dag.extraRegels.length > 0 && ` · ${dag.extraRegels.length} extra post(en)`}
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
@@ -499,12 +590,39 @@ export default function FactuurReviewPage() {
                       {timeline.length === 0 && (
                         <p className="text-xs text-center py-2" style={{ color: '#6D6D6D' }}>Geen items</p>
                       )}
+
+                      {/* Extra posten */}
+                      {dag.extraRegels.length > 0 && (
+                        <div className="mt-1 pt-1 space-y-1" style={{ borderTop: '1px dashed #3D5D3D' }}>
+                          {dag.extraRegels.map(regel => (
+                            <ExtraRegelRij
+                              key={regel.id}
+                              regel={regel}
+                              onUpdate={handleExtraRegelUpdate}
+                              onDelete={handleExtraRegelDelete}
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Voeg extra post toe */}
+                      <button
+                        onClick={() => handleAddExtraRegel(dag.datum, tech)}
+                        className="w-full py-1.5 rounded text-xs transition-opacity hover:opacity-80 flex items-center justify-center gap-1.5"
+                        style={{ backgroundColor: 'rgba(102,187,106,0.08)', color: '#66BB6A', border: '1px dashed #3D5D3D' }}
+                      >
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                        Extra post toevoegen
+                      </button>
                     </div>
 
                     {/* Dag subtotaal balk */}
                     <div className="px-4 py-2 flex gap-6 text-xs border-t" style={{ borderColor: '#4D4D4D', backgroundColor: '#333333' }}>
                       <span style={{ color: '#9D9D9D' }}>Arbeid: {formatCurrency(dagArbeid)}</span>
                       <span style={{ color: '#9D9D9D' }}>Reiskosten: {formatCurrency(dagReis)}</span>
+                      {dagExtra > 0 && <span style={{ color: '#9D9D9D' }}>Extra: {formatCurrency(dagExtra)}</span>}
                       <span className="ml-auto font-semibold" style={{ color: '#ffffff' }}>Dag totaal: {formatCurrency(dagTotaal)}</span>
                     </div>
                   </div>
@@ -535,7 +653,7 @@ export default function FactuurReviewPage() {
             style={{ backgroundColor: '#3D3D3D', boxShadow: '0 -4px 20px rgba(0,0,0,0.5)' }}
           >
             <div>
-              <p style={{ color: '#9D9D9D' }} className="text-sm">Maandtotaal</p>
+              <p style={{ color: '#9D9D9D' }} className="text-sm">Weektotaal</p>
               <p className="text-3xl font-bold" style={{ color: '#00E8FF' }}>{formatCurrency(totalen.totaalInclBTW)}</p>
               <p style={{ color: '#6D6D6D' }} className="text-xs mt-1">
                 excl. BTW {formatCurrency(totalen.totaal)} · BTW {formatCurrency(totalen.btw)}

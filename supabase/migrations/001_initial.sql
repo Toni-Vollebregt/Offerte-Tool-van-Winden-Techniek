@@ -27,6 +27,14 @@ create table if not exists facturen (
   aangemaakt timestamp default now()
 );
 
+-- Create instellingen table (key/value voor reiskosten tarieven)
+create table if not exists instellingen (
+  id uuid default gen_random_uuid() primary key,
+  key text unique not null,
+  value text,
+  aangemaakt timestamp default now()
+);
+
 -- Insert default tarieven
 insert into tarieven (code, omschrijving, uurtarief) values
   ('O-G', 'Onderhoud Garagedeuren', 60.00),
@@ -42,4 +50,12 @@ insert into tarieven (code, omschrijving, uurtarief) values
   ('PAC/MOBIEL', 'ONDERHOUD PAC EN MOBIEL ABONNEMENT', 60.00),
   ('O-ROLSCHERMEN', 'Onderhoud Rolschermen', 55.00),
   ('O-BEHEER BMI/RWA', 'Onderhoud Beheer BMI/RWA', 65.00),
-  ('STORINGEN', 'Storingen Arbeidsuren', 60.00);
+  ('STORINGEN', 'Storingen Arbeidsuren', 60.00)
+on conflict (code) do nothing;
+
+-- Insert default reiskosten instellingen
+insert into instellingen (key, value) values
+  ('km_tarief', '0.50'),
+  ('reis_uur_tarief', '55'),
+  ('filemarge', '1.15')
+on conflict (key) do nothing;

@@ -1,3 +1,13 @@
+export interface ExtraRegel {
+  id: string
+  datum: string          // DD-MM-YYYY
+  technicianName?: string
+  omschrijving: string
+  prijs: number          // excl. BTW per stuk
+  aantal: number
+  totaal: number         // prijs * aantal
+}
+
 export interface Rit {
   id: string
   datum: string         // DD-MM-YYYY
@@ -56,9 +66,11 @@ export interface Factuur {
   jaar: number
   klussen: Klus[]
   rits?: Rit[]
+  extraRegels?: ExtraRegel[]
   subtotaalArbeid: number
   subtotaalReisKm: number
   subtotaalReisUur: number
+  subtotaalExtra?: number
   totaal: number
   btw: number
   totaalInclBTW: number
@@ -67,7 +79,7 @@ export interface Factuur {
 
 export interface Tarief {
   id: string
-  code: string
+  code?: string
   omschrijving: string
   uurtarief: number
 }

@@ -17,6 +17,15 @@ const FactuurActions = dynamic(() => import('@/components/FactuurActions'), {
   ),
 })
 
+const BijlageActions = dynamic(() => import('@/components/BijlageActions'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm text-white" style={{ background: 'linear-gradient(135deg, #0055FF, #00E8FF)', opacity: 0.7 }}>
+      PDF laden...
+    </div>
+  ),
+})
+
 const FactuurPreviewPanel = dynamic(() => import('@/components/FactuurPreviewPanel'), { ssr: false })
 
 export default function FactuurFinalizePage() {
@@ -94,7 +103,8 @@ export default function FactuurFinalizePage() {
   }
 
   const techs = [...new Set(factuur.klussen.map(k => k.technicianName).filter(Boolean))]
-  const fileName = `Factuur_VanWindenTechniek_Week${factuur.weekNummer}_${factuur.jaar}.pdf`
+  const fileNameFactuur = `Factuur_VanWindenTechniek_Week${factuur.weekNummer}_${factuur.jaar}.pdf`
+  const fileNameBijlage = `Bijlage_VanWindenTechniek_Week${factuur.weekNummer}_${factuur.jaar}.pdf`
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#2D2D2D' }}>
@@ -142,9 +152,9 @@ export default function FactuurFinalizePage() {
           </div>
 
           {/* Acties */}
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
 
-            {/* PDF Download */}
+            {/* Factuur PDF Download */}
             <div className="rounded-xl p-5 flex flex-col gap-4" style={{ backgroundColor: '#3D3D3D' }}>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(0, 232, 255, 0.1)' }}>
@@ -153,11 +163,27 @@ export default function FactuurFinalizePage() {
                   </svg>
                 </div>
                 <div>
-                  <p className="text-white font-semibold text-sm">PDF Downloaden</p>
-                  <p style={{ color: '#9D9D9D' }} className="text-xs">Factuur als PDF opslaan</p>
+                  <p className="text-white font-semibold text-sm">Factuur PDF</p>
+                  <p style={{ color: '#9D9D9D' }} className="text-xs">Factuur downloaden</p>
                 </div>
               </div>
-              <FactuurActions factuur={factuur} fileName={fileName} />
+              <FactuurActions factuur={factuur} fileName={fileNameFactuur} />
+            </div>
+
+            {/* Bijlage PDF Download */}
+            <div className="rounded-xl p-5 flex flex-col gap-4" style={{ backgroundColor: '#3D3D3D' }}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: 'rgba(0, 232, 255, 0.1)' }}>
+                  <svg className="w-5 h-5" style={{ color: '#00E8FF' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-white font-semibold text-sm">Bijlage PDF</p>
+                  <p style={{ color: '#9D9D9D' }} className="text-xs">Specificaties downloaden</p>
+                </div>
+              </div>
+              <BijlageActions factuur={factuur} fileName={fileNameBijlage} />
             </div>
 
             {/* Opslaan in Supabase */}
