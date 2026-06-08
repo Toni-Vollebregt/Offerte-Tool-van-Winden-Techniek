@@ -293,7 +293,7 @@ export default function AdminPage() {
     else setDownloadingBijlage(row.id)
     setFacturenError('')
     try {
-      const factuurNummer = `FACT-${row.data.jaar}-W${String(row.data.weekNummer).padStart(2, '0')}-${row.id.slice(-4)}`
+      const factuurNummer = row.data.factuurNummer ?? `FACT-${row.data.jaar}-W${String(row.data.weekNummer).padStart(2, '0')}-${row.id.slice(-4)}`
       const logoUrl = `${window.location.origin}/vanwinden_techniek_logo_transparant.png`
       const { pdf } = await import('@react-pdf/renderer')
       let element: React.ReactElement

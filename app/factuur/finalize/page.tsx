@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Header from '@/components/Header'
 import StepIndicator from '@/components/StepIndicator'
 import type { Factuur } from '@/types'
 import { formatCurrency } from '@/lib/calculations'
+import { supabase } from '@/lib/supabase'
 
 const FactuurActions = dynamic(() => import('@/components/FactuurActions'), {
   ssr: false,
@@ -49,18 +50,58 @@ export default function FactuurFinalizePage() {
     if (!factuur) return
     setIsSaving(true)
     setSaveError(null)
+
     try {
+      const factuurNummer = `FACT-${factuur.jaar}-W${String(factuur.weekNummer).padStart(2, '0')}-${Date.now().toString().slice(-4)}`
+
+      let factuurPdfPath: string | null = null
+      let bijlagePdfPath: string | null = null
+
+      try {
+        const [rendererMod, factuurDocMod, bijlageDocMod] = await Promise.all([
+          import('@react-pdf/renderer'),
+          import('@/components/FactuurDocument'),
+          import('@/components/BijlageDocument'),
+        ])
+        const { pdf } = rendererMod
+        const FactuurDoc = factuurDocMod.default
+        const BijlageDoc = bijlageDocMod.default
+        const logoUrl = `${window.location.origin}/vanwinden_techniek_logo_transparant.png`
+
+        const [factuurBlob, bijlageBlob] = await Promise.all([
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (pdf as any)(React.createElement(FactuurDoc, { factuur, factuurNummer, logoUrl })).toBlob(),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (pdf as any)(React.createElement(BijlageDoc, { factuur, factuurNummer, logoUrl })).toBlob(),
+        ])
+
+        const [r1, r2] = await Promise.all([
+          supabase.storage.from('factuur-pdfs').upload(`${factuurNummer}/factuur.pdf`, factuurBlob, { contentType: 'application/pdf', upsert: true }),
+          supabase.storage.from('factuur-pdfs').upload(`${factuurNummer}/bijlage.pdf`, bijlageBlob, { contentType: 'application/pdf', upsert: true }),
+        ])
+
+        if (!r1.error) factuurPdfPath = r1.data.path
+        else console.error('Factuur PDF upload error:', r1.error)
+
+        if (!r2.error) bijlagePdfPath = r2.data.path
+        else console.error('Bijlage PDF upload error:', r2.error)
+
+      } catch (pdfErr) {
+        console.error('PDF generatie/upload error:', pdfErr)
+      }
+
       const response = await fetch('/api/facturen', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(factuur),
+        body: JSON.stringify({ ...factuur, factuurNummer, factuurPdfPath, bijlagePdfPath }),
       })
       if (!response.ok) {
         const err = await response.json()
-        throw new Error(err.error || 'Opslaan mislukt')
+        throw new Error(err.error ?? 'Opslaan mislukt')
       }
       const data = await response.json()
-      setSavedId(data.id || 'opgeslagen')
+      setSavedId(data.id ?? 'opgeslagen')
+
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : 'Onbekende fout')
     } finally {

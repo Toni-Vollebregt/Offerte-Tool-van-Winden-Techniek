@@ -41,6 +41,9 @@ export async function POST(request: NextRequest) {
         maand: body.weekNummer != null ? String(body.weekNummer) : null,
         jaar: body.jaar,
         totaal: body.totaal,
+        factuur_nummer: body.factuurNummer ?? null,
+        factuur_pdf_path: body.factuurPdfPath ?? null,
+        bijlage_pdf_path: body.bijlagePdfPath ?? null,
         data: body,
       })
       .select()

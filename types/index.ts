@@ -75,6 +75,9 @@ export interface Factuur {
   btw: number
   totaalInclBTW: number
   aangemaakt?: string
+  factuurNummer?: string
+  factuurPdfPath?: string | null
+  bijlagePdfPath?: string | null
 }
 
 export interface Tarief {

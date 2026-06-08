@@ -59,3 +59,16 @@ insert into instellingen (key, value) values
   ('reis_uur_tarief', '55'),
   ('filemarge', '1.15')
 on conflict (key) do nothing;
+
+-- Add PDF storage columns to facturen (run if table already exists)
+alter table facturen
+  add column if not exists factuur_nummer text,
+  add column if not exists factuur_pdf_path text,
+  add column if not exists bijlage_pdf_path text;
+
+-- Supabase Storage bucket setup (do this in Supabase dashboard):
+-- 1. Storage → New bucket → Name: factuur-pdfs → Public: false
+-- 2. Add policy: INSERT for anon (or authenticated) users
+--    Example SQL policy: (bucket_id = 'factuur-pdfs')
+-- 3. Add policy: SELECT for anon (or authenticated) users
+--    Example SQL policy: (bucket_id = 'factuur-pdfs')

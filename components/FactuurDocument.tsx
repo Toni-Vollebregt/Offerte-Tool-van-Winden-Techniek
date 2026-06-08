@@ -254,11 +254,12 @@ interface FactuurDocumentProps {
   factuur: Factuur
   logoUrl?: string
   technicianName?: string
+  factuurNummer?: string
 }
 
-export default function FactuurDocument({ factuur, logoUrl }: FactuurDocumentProps) {
+export default function FactuurDocument({ factuur, logoUrl, factuurNummer: factuurNummerProp }: FactuurDocumentProps) {
   const today = new Date().toLocaleDateString('nl-NL', { day: '2-digit', month: 'long', year: 'numeric' })
-  const factuurNummer = `FACT-${factuur.jaar}-W${String(factuur.weekNummer).padStart(2, '0')}-${Date.now().toString().slice(-4)}`
+  const factuurNummer = factuurNummerProp ?? `FACT-${factuur.jaar}-W${String(factuur.weekNummer).padStart(2, '0')}-${Date.now().toString().slice(-4)}`
   const btw = factuur.btw ?? Math.round(factuur.totaal * 0.21 * 100) / 100
   const totaalInclBTW = factuur.totaalInclBTW ?? Math.round(factuur.totaal * 1.21 * 100) / 100
   const vervaldatum = addDays(BETALINGSTERMIJN_DAGEN)
