@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import Header from '@/components/Header'
-import type { Offerte, Factuur, Tarief } from '@/types'
+import type { Offerte, Factuur, Tarief, Medewerker } from '@/types'
 import { formatCurrency } from '@/lib/calculations'
 
 type OfferteSaved = {
@@ -45,7 +45,7 @@ export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [password, setPassword] = useState('')
   const [authError, setAuthError] = useState('')
-  const [activeTab, setActiveTab] = useState<'tarieven' | 'offertes' | 'facturen'>('tarieven')
+  const [activeTab, setActiveTab] = useState<'tarieven' | 'medewerkers' | 'offertes' | 'facturen'>('tarieven')
 
   // Tarieven state
   const [tarieven, setTarieven] = useState<Tarief[]>([])
@@ -77,6 +77,16 @@ export default function AdminPage() {
   const [facturenError, setFacturenError] = useState('')
   const [downloadingFactuur, setDownloadingFactuur] = useState<string | null>(null)
   const [downloadingBijlage, setDownloadingBijlage] = useState<string | null>(null)
+
+  // Medewerkers state
+  const [medewerkers, setMedewerkers] = useState<Medewerker[]>([])
+  const [isLoadingMedewerkers, setIsLoadingMedewerkers] = useState(false)
+  const [medewerkersLoaded, setMedewerkersLoaded] = useState(false)
+  const [medewerkersError, setMedewerkersError] = useState('')
+  const [editingMedewerkerId, setEditingMedewerkerId] = useState<string | null>(null)
+  const [editMedewerkerValues, setEditMedewerkerValues] = useState({ naam: '', km_tarief: 0.50, reis_uur_tarief: 55, filemarge: 1.15 })
+  const [newMedewerker, setNewMedewerker] = useState({ naam: '', km_tarief: 0.50, reis_uur_tarief: 55, filemarge: 1.15 })
+  const [savingMedewerkerId, setSavingMedewerkerId] = useState<string | null>(null)
 
   const fetchTarieven = async () => {
     setIsLoadingTarieven(true)
@@ -146,7 +156,8 @@ export default function AdminPage() {
   useEffect(() => {
     if (activeTab === 'offertes' && isAuthenticated && !offertesLoaded) fetchOffertes()
     if (activeTab === 'facturen' && isAuthenticated && !facturenLoaded) fetchFacturen()
-  }, [activeTab, isAuthenticated, offertesLoaded, facturenLoaded])
+    if (activeTab === 'medewerkers' && isAuthenticated && !medewerkersLoaded) fetchMedewerkers()
+  }, [activeTab, isAuthenticated, offertesLoaded, facturenLoaded, medewerkersLoaded])
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
@@ -337,6 +348,105 @@ export default function AdminPage() {
     }
   }
 
+  const fetchMedewerkers = async () => {
+    setIsLoadingMedewerkers(true)
+    setMedewerkersError('')
+    try {
+      const response = await fetch('/api/medewerkers')
+      if (!response.ok) { setMedewerkersError('Ophalen mislukt.'); return }
+      const data = await response.json()
+      setMedewerkers(Array.isArray(data) ? data : [])
+      setMedewerkersLoaded(true)
+    } catch {
+      setMedewerkersError('Verbindingsfout — probeer opnieuw.')
+    } finally {
+      setIsLoadingMedewerkers(false)
+    }
+  }
+
+  const handleEditMedewerker = (m: Medewerker) => {
+    setEditingMedewerkerId(m.id)
+    setEditMedewerkerValues({ naam: m.naam, km_tarief: m.km_tarief, reis_uur_tarief: m.reis_uur_tarief, filemarge: m.filemarge })
+  }
+
+  const handleSaveMedewerker = async (id: string) => {
+    setSavingMedewerkerId(id)
+    setMedewerkersError('')
+    try {
+      const response = await fetch('/api/medewerkers', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...editMedewerkerValues }),
+      })
+      if (response.ok) {
+        const updated = await response.json()
+        setMedewerkers(prev => prev.map(m => m.id === id ? updated : m))
+        setEditingMedewerkerId(null)
+      } else {
+        const err = await response.json()
+        setMedewerkersError(err.error ?? 'Opslaan mislukt.')
+      }
+    } catch {
+      setMedewerkersError('Verbindingsfout — probeer opnieuw.')
+    } finally {
+      setSavingMedewerkerId(null)
+    }
+  }
+
+  const handleToggleMedewerker = async (id: string, actief: boolean) => {
+    setMedewerkersError('')
+    try {
+      const response = await fetch('/api/medewerkers', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, actief }),
+      })
+      if (response.ok) {
+        setMedewerkers(prev => prev.map(m => m.id === id ? { ...m, actief } : m))
+      } else {
+        const err = await response.json()
+        setMedewerkersError(err.error ?? 'Bijwerken mislukt.')
+      }
+    } catch {
+      setMedewerkersError('Verbindingsfout — probeer opnieuw.')
+    }
+  }
+
+  const handleAddMedewerker = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newMedewerker.naam.trim()) return
+    setMedewerkersError('')
+    try {
+      const response = await fetch('/api/medewerkers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newMedewerker),
+      })
+      if (response.ok) {
+        const created = await response.json()
+        setMedewerkers(prev => [...prev, created].sort((a, b) => a.naam.localeCompare(b.naam)))
+        setNewMedewerker({ naam: '', km_tarief: 0.50, reis_uur_tarief: 55, filemarge: 1.15 })
+      } else {
+        const err = await response.json()
+        setMedewerkersError(err.error ?? 'Aanmaken mislukt.')
+      }
+    } catch {
+      setMedewerkersError('Verbindingsfout — probeer opnieuw.')
+    }
+  }
+
+  const handleDeleteMedewerker = async (id: string) => {
+    if (!confirm('Medewerker verwijderen?')) return
+    setMedewerkersError('')
+    try {
+      const response = await fetch(`/api/medewerkers?id=${id}`, { method: 'DELETE' })
+      if (response.ok) setMedewerkers(prev => prev.filter(m => m.id !== id))
+      else { const err = await response.json(); setMedewerkersError(err.error ?? 'Verwijderen mislukt.') }
+    } catch {
+      setMedewerkersError('Verbindingsfout — probeer opnieuw.')
+    }
+  }
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#2D2D2D' }}>
@@ -392,11 +502,11 @@ export default function AdminPage() {
 
         {/* Tab navigatie */}
         <div className="flex gap-1 mb-6 p-1 rounded-xl" style={{ backgroundColor: '#3D3D3D' }}>
-          {(['tarieven', 'offertes', 'facturen'] as const).map(tab => (
+          {(['tarieven', 'medewerkers', 'offertes', 'facturen'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className="flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all capitalize"
+              className="flex-1 py-2 px-2 rounded-lg text-sm font-medium transition-all capitalize"
               style={activeTab === tab ? { backgroundColor: '#2D2D2D', color: '#ffffff' } : { color: '#9D9D9D' }}
             >
               {tab}
@@ -575,6 +685,215 @@ export default function AdminPage() {
                   ))}
                 </div>
               )}
+            </div>
+          </>
+        )}
+
+        {/* ── Medewerkers tab ── */}
+        {activeTab === 'medewerkers' && (
+          <>
+            {medewerkersError && (
+              <div className="mb-4 px-4 py-3 rounded-lg text-sm" style={{ backgroundColor: 'rgba(255, 68, 68, 0.1)', color: '#FF4444' }}>
+                {medewerkersError}
+              </div>
+            )}
+
+            <div className="rounded-xl overflow-hidden mb-6" style={{ backgroundColor: '#3D3D3D' }}>
+              <div className="px-5 py-4 border-b flex items-center justify-between" style={{ borderColor: '#4D4D4D' }}>
+                <div>
+                  <h2 className="text-white font-semibold">Medewerkers</h2>
+                  <p style={{ color: '#9D9D9D' }} className="text-xs mt-0.5">
+                    Reiskosten worden per medewerker ingesteld en zijn leidend bij berekeningen
+                  </p>
+                </div>
+                <button onClick={() => { setMedewerkersLoaded(false) }} className="text-xs px-3 py-1.5 rounded-lg" style={{ color: '#9D9D9D', backgroundColor: '#2D2D2D' }}>Vernieuwen</button>
+              </div>
+
+              {isLoadingMedewerkers ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#00E8FF', borderTopColor: 'transparent' }} />
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ backgroundColor: '#2D2D2D' }}>
+                        <th className="px-4 py-3 text-left text-xs font-semibold" style={{ color: '#9D9D9D' }}>Naam</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold" style={{ color: '#9D9D9D' }}>€/km</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold" style={{ color: '#9D9D9D' }}>€/uur reis</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold" style={{ color: '#9D9D9D' }}>Filemarge</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold" style={{ color: '#9D9D9D' }}>Actief</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold" style={{ color: '#9D9D9D' }}>Acties</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {medewerkers.map(m => (
+                        <tr key={m.id} className="border-t" style={{ borderColor: '#4D4D4D', opacity: m.actief ? 1 : 0.5 }}>
+                          <td className="px-4 py-3">
+                            {editingMedewerkerId === m.id ? (
+                              <input
+                                type="text"
+                                value={editMedewerkerValues.naam}
+                                onChange={e => setEditMedewerkerValues(prev => ({ ...prev, naam: e.target.value }))}
+                                className="w-full px-2 py-1 rounded border text-sm"
+                                style={inputStyle}
+                              />
+                            ) : (
+                              <span className="text-white font-medium">{m.naam}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {editingMedewerkerId === m.id ? (
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={editMedewerkerValues.km_tarief}
+                                onChange={e => setEditMedewerkerValues(prev => ({ ...prev, km_tarief: parseFloat(e.target.value) || 0 }))}
+                                className="w-20 px-2 py-1 rounded border text-sm text-right"
+                                style={inputStyle}
+                              />
+                            ) : (
+                              <span style={{ color: '#9D9D9D' }}>€ {m.km_tarief.toFixed(2)}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {editingMedewerkerId === m.id ? (
+                              <input
+                                type="number"
+                                step="0.50"
+                                min="0"
+                                value={editMedewerkerValues.reis_uur_tarief}
+                                onChange={e => setEditMedewerkerValues(prev => ({ ...prev, reis_uur_tarief: parseFloat(e.target.value) || 0 }))}
+                                className="w-20 px-2 py-1 rounded border text-sm text-right"
+                                style={inputStyle}
+                              />
+                            ) : (
+                              <span style={{ color: '#9D9D9D' }}>€ {m.reis_uur_tarief.toFixed(0)}</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            {editingMedewerkerId === m.id ? (
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="1"
+                                value={editMedewerkerValues.filemarge}
+                                onChange={e => setEditMedewerkerValues(prev => ({ ...prev, filemarge: parseFloat(e.target.value) || 1 }))}
+                                className="w-20 px-2 py-1 rounded border text-sm text-right"
+                                style={inputStyle}
+                              />
+                            ) : (
+                              <span style={{ color: '#9D9D9D' }}>{m.filemarge.toFixed(2)}×</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <button
+                              onClick={() => handleToggleMedewerker(m.id, !m.actief)}
+                              className="w-8 h-5 rounded-full transition-colors relative inline-flex"
+                              style={{ backgroundColor: m.actief ? '#00E8FF' : '#4D4D4D' }}
+                            >
+                              <span
+                                className="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+                                style={{ transform: m.actief ? 'translateX(14px)' : 'translateX(2px)' }}
+                              />
+                            </button>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-2">
+                              {editingMedewerkerId === m.id ? (
+                                <>
+                                  <button
+                                    onClick={() => handleSaveMedewerker(m.id)}
+                                    disabled={savingMedewerkerId === m.id}
+                                    className="text-xs px-3 py-1 rounded transition-colors disabled:opacity-50"
+                                    style={{ backgroundColor: 'rgba(0, 232, 255, 0.1)', color: '#00E8FF' }}
+                                  >
+                                    {savingMedewerkerId === m.id ? '...' : 'Opslaan'}
+                                  </button>
+                                  <button onClick={() => setEditingMedewerkerId(null)} className="text-xs px-3 py-1 rounded" style={{ color: '#9D9D9D', backgroundColor: '#2D2D2D' }}>Annuleren</button>
+                                </>
+                              ) : (
+                                <>
+                                  <button onClick={() => handleEditMedewerker(m)} className="text-xs px-3 py-1 rounded" style={{ color: '#9D9D9D', backgroundColor: '#2D2D2D' }}>Bewerken</button>
+                                  <button onClick={() => handleDeleteMedewerker(m.id)} className="text-xs px-3 py-1 rounded" style={{ color: '#FF4444', backgroundColor: 'rgba(255, 68, 68, 0.1)' }}>Verwijder</button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {medewerkers.length === 0 && (
+                        <tr><td colSpan={6} className="px-5 py-10 text-center text-sm" style={{ color: '#9D9D9D' }}>Geen medewerkers gevonden</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Nieuwe medewerker */}
+            <div className="rounded-xl p-5" style={{ backgroundColor: '#3D3D3D' }}>
+              <h2 className="text-white font-semibold mb-4">Nieuwe medewerker toevoegen</h2>
+              <form onSubmit={handleAddMedewerker} className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                <div className="space-y-1 md:col-span-4 md:col-span-1" style={{ gridColumn: 'span 1 / span 1' }}>
+                </div>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-4 md:col-span-4" style={{ gridColumn: '1 / -1' }}>
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-xs font-medium" style={{ color: '#9D9D9D' }}>Naam *</label>
+                    <input
+                      type="text"
+                      value={newMedewerker.naam}
+                      onChange={e => setNewMedewerker(prev => ({ ...prev, naam: e.target.value }))}
+                      placeholder="Volledige naam"
+                      className="w-full px-3 py-2 rounded-lg border text-sm"
+                      style={inputStyle}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium" style={{ color: '#9D9D9D' }}>€/km</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={newMedewerker.km_tarief}
+                      onChange={e => setNewMedewerker(prev => ({ ...prev, km_tarief: parseFloat(e.target.value) || 0 }))}
+                      className="w-full px-3 py-2 rounded-lg border text-sm"
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium" style={{ color: '#9D9D9D' }}>€/uur reistijd</label>
+                    <input
+                      type="number"
+                      step="0.50"
+                      min="0"
+                      value={newMedewerker.reis_uur_tarief}
+                      onChange={e => setNewMedewerker(prev => ({ ...prev, reis_uur_tarief: parseFloat(e.target.value) || 0 }))}
+                      className="w-full px-3 py-2 rounded-lg border text-sm"
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium" style={{ color: '#9D9D9D' }}>Filemarge</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="1"
+                      value={newMedewerker.filemarge}
+                      onChange={e => setNewMedewerker(prev => ({ ...prev, filemarge: parseFloat(e.target.value) || 1 }))}
+                      className="w-full px-3 py-2 rounded-lg border text-sm"
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div className="md:col-span-4">
+                    <button type="submit" className="px-6 py-2.5 rounded-lg font-medium text-sm text-white" style={{ background: 'linear-gradient(135deg, #0055FF, #00E8FF)' }}>
+                      Medewerker toevoegen
+                    </button>
+                  </div>
+                </div>
+              </form>
             </div>
           </>
         )}

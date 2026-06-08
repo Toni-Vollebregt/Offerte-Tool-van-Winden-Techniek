@@ -86,3 +86,13 @@ export interface Tarief {
   omschrijving: string
   uurtarief: number
 }
+
+export interface Medewerker {
+  id: string
+  naam: string
+  km_tarief: number
+  reis_uur_tarief: number
+  filemarge: number
+  actief: boolean
+  aangemaakt: string
+}

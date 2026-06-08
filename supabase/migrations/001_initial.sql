@@ -66,6 +66,23 @@ alter table facturen
   add column if not exists factuur_pdf_path text,
   add column if not exists bijlage_pdf_path text;
 
+-- Medewerkers tabel
+create table if not exists medewerkers (
+  id uuid default gen_random_uuid() primary key,
+  naam text not null,
+  km_tarief numeric(5,2) not null default 0.50,
+  reis_uur_tarief numeric(6,2) not null default 55.00,
+  filemarge numeric(4,2) not null default 1.15,
+  actief boolean not null default true,
+  aangemaakt timestamptz default now()
+);
+
+insert into medewerkers (naam) values
+  ('Rico van Winden'),
+  ('Gurkan Soydemir'),
+  ('Owen Huis')
+on conflict do nothing;
+
 -- Supabase Storage bucket setup (do this in Supabase dashboard):
 -- 1. Storage → New bucket → Name: factuur-pdfs → Public: false
 -- 2. Add policy: INSERT for anon (or authenticated) users
